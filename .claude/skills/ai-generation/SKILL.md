@@ -39,6 +39,8 @@ In `production.json → gpu`: `image_model` (sdxl|zimage), `video_model` (wan21-
 
 - **Hard budget** `max_job_s` (default 3600): a watchdog inside the kernel stops the job and reports `timed_out`
   so a stuck run never burns quota; `vs-produce` sizes it from the number of items.
+- **Queue timeout** (`vs-gpu run --queue-timeout`, default 45 min): a job Kaggle never starts is deleted so it
+  stops holding one of the 2 free batch slots (measured: a queued T4 job can wait > 2 h); exit code 6 = retry later.
 - **Per-step guard** (`step_guard`): NaN/inf latents or a projected item time above `item_budget_s` stop that
   item at the failing step (seconds, not an hour) and the job moves on.
 - **Benchmarks in `report.json`**: `load_s`, per item `s` / `denoise_s` / `s_per_step` / `decode_s`,
