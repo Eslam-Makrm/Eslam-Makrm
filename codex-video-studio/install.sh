@@ -117,7 +117,7 @@ mkvenv venv-editor && "$VS_HOME/venv-editor/bin/pip" install -q $PY_PKGS_EDITOR 
 # ---------------------------------------------------------------- 5. helpers, vendor files, fonts
 say "Helpers, GSAP, fonts"
 cp "$HERE/bin/env.sh" "$VS_HOME/env.sh"
-for f in vs-verify vs-hf-check; do cp "$HERE/bin/$f" "$VS_HOME/bin/$f"; chmod +x "$VS_HOME/bin/$f"; done
+for f in vs-verify vs-hf-check vs-doctor; do cp "$HERE/bin/$f" "$VS_HOME/bin/$f"; chmod +x "$VS_HOME/bin/$f"; done
 if [ ! -f "$VS_HOME/vendor/gsap.min.js" ]; then
   tmp="$(mktemp -d)"; (cd "$tmp" && npm pack -s "gsap@$GSAP_VER" >/dev/null && tar xzf gsap-*.tgz)
   cp "$tmp/package/dist/gsap.min.js" "$VS_HOME/vendor/"; rm -rf "$tmp"

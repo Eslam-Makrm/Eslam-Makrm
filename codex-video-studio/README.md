@@ -67,7 +67,7 @@ Every session's tools come from `source ~/.video-studio/env.sh` (the skills say 
 install.sh            installer (idempotent; pinned versions at the top)
 patch-upstream.py     adapts the upstream skills for Codex (free-only, no telemetry)
 skills/               the 6 studio skills (copied to ~/.codex/skills)
-bin/                  env.sh, vs-verify (MP4 checks + contact sheet), vs-hf-check
+bin/                  env.sh, vs-verify (MP4 checks + contact sheet), vs-hf-check, vs-doctor (install proof)
 examples/             source of every sample (HyperFrames, Manim, explainroo, p5)
 tests/run-all.sh      regenerates and verifies every sample
 docs/REVIEW.md        tool selection, security and licence review
