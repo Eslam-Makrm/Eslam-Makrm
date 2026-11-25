@@ -1,3 +1,0 @@
-interface:
-  display_name: "Video Editing"
-  short_description: "Cut, join, reframe and finish videos with ffmpeg"

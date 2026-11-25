@@ -1,0 +1,30 @@
+<template>
+  <style>
+    #root { position: absolute; inset: 0; background: #0d1b2a; overflow: hidden; font-family: "Cairo"; }
+    #intro-ring { position: absolute; left: 660px; top: 240px; width: 600px; height: 600px; border-radius: 50%;
+                  border: 18px solid #ffb547; }
+    #intro-dot { position: absolute; left: 930px; top: 510px; width: 60px; height: 60px; border-radius: 50%; background: #ff6b6b; }
+    #intro-title { position: absolute; left: 0; right: 0; top: 430px; text-align: center; color: #f4f1ea;
+                   font-size: 150px; font-weight: 900; letter-spacing: -0.02em; line-height: 1; }
+    #intro-sub { position: absolute; left: 0; right: 0; top: 620px; text-align: center; color: #9fb3c8;
+                 font-size: 48px; font-weight: 500; }
+  </style>
+  <div id="root" data-composition-id="intro" data-width="1920" data-height="1080">
+    <div id="intro-ring" class="clip" data-start="0" data-duration="4"></div>
+    <div id="intro-dot" class="clip" data-start="0" data-duration="4"></div>
+    <h1 id="intro-title" class="clip" data-start="0" data-duration="4" data-var-text="brand">Video Studio</h1>
+    <p id="intro-sub" class="clip" data-start="1.2" data-duration="2.8">Free. Local. Open source.</p>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#intro-ring", { scale: 0.55, rotation: -90 }, { scale: 1, rotation: 0, duration: 0.85, ease: "expo.out" }, 0);
+    tl.fromTo("#intro-dot", { scale: 0.6 }, { scale: 1, duration: 0.45, ease: "back.out(2.2)" }, 0.25);
+    tl.to("#intro-ring", { scale: 2.6, opacity: 0.12, duration: 1.1, ease: "power3.inOut" }, 0.9);
+    tl.to("#intro-dot", { scale: 40, opacity: 0, duration: 0.9, ease: "power3.in" }, 0.75);
+    tl.fromTo("#intro-title", { y: 40, opacity: 0.55 }, { y: 0, opacity: 1, duration: 0.7, ease: "power3.out" }, 0);
+    tl.fromTo("#intro-sub", { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power3.out" }, 1.2);
+    tl.to("#intro-title", { scale: 1.04, duration: 2.2, ease: "none" }, 1.2);
+    tl.to(["#intro-title", "#intro-sub"], { y: -60, opacity: 0, duration: 0.35, ease: "power2.in" }, 3.6);
+    window.__timelines["intro"] = tl;
+  </script>
+</template>
