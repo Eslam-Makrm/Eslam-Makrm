@@ -22,7 +22,7 @@ for f in ("_boot.tmpl", "_common.py"):
 open(sys.argv[4], "w").write(m.pack(job, {"items": [{"id": f"i{k}"} for k in range(5)]}, [sys.argv[3]]))
 PY
 VS_FAKE_GPUS=2 python3 "$T/packed.py"
-ls /kaggle/working/out; cat /kaggle/working/out/report.json
+ls /kaggle/working/out; cat /kaggle/working/out/report.json; echo
 n=$(ls /kaggle/working/out/i*.txt | wc -l); [ "$n" = 5 ] || { echo "FAIL: $n/5 items"; exit 1; }
 grep -q "by shard 0" /kaggle/working/out/i0.txt && grep -q "by shard 1" /kaggle/working/out/i1.txt && grep -q "input=hello" /kaggle/working/out/i4.txt \
   && python3 -c "import json;d=json.load(open('/kaggle/working/out/report.json'));assert d['parallel_gpus']==2 and d['shard_exit_codes']==[0,0]" \
