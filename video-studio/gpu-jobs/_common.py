@@ -176,4 +176,8 @@ def looks_broken(arr):
     """NaN/black output check (fp16 overflow shows up as black frames)."""
     import numpy as np
     a = np.asarray(arr, dtype=np.float32)
-    return (not np.isfinite(a).all()) or float(a.mean()) < 2.0
+    if not np.isfinite(a).all():
+        return True
+    if a.size and float(a.max()) <= 1.0:      # pipelines returning floats in [0, 1] (e.g. Wan video frames)
+        a = a * 255.0
+    return float(a.mean()) < 2.0

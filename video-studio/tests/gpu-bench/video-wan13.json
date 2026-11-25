@@ -1,7 +1,5 @@
-{"model": "wan21-1.3b", "preset": "t4", "probe_steps": 3, "item_budget_s": 1200, "max_job_s": 3000,
+{"model": "wan21-1.3b", "preset": "t4", "cfg_until": 0.5, "item_budget_s": 900, "max_job_s": 2400,
  "items": [
-  {"id": "probe-81f-cfg", "prompt": "a red kite flying over green hills on a sunny day, clouds drifting, slow pan right, cinematic", "frames": 81, "probe": true, "seed": 3},
-  {"id": "probe-49f-cfg", "prompt": "a red kite flying over green hills on a sunny day, clouds drifting, slow pan right, cinematic", "frames": 49, "probe": true, "seed": 3},
-  {"id": "kite", "prompt": "a red kite flying over green hills on a sunny day, clouds drifting, slow pan right, cinematic", "cfg_until": 0.5, "seed": 3},
-  {"id": "kite-fbc", "prompt": "a red kite flying over green hills on a sunny day, clouds drifting, slow pan right, cinematic", "cfg_until": 0.5, "cache": 0.05, "seed": 3}
+  {"id": "kite", "prompt": "a red kite flying over green hills on a sunny day, clouds drifting, slow pan right, cinematic", "seed": 3},
+  {"id": "kite-fbc", "prompt": "a red kite flying over green hills on a sunny day, clouds drifting, slow pan right, cinematic", "cache": 0.05, "seed": 3}
  ]}

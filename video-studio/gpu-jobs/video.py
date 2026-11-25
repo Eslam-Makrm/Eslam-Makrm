@@ -221,12 +221,17 @@ for it in ITEMS:
     if it.get("probe"):
         probes.append({"id": it["id"], "size": f"{dims[0]}x{dims[1]}", "frames": dims[2], **timing(time.time() - s)})
         report(probes=probes); continue
-    if looks_broken(frames[len(frames) // 2]):
+    if looks_broken(frames[len(frames) // 2]):    # keep the evidence: saved as .suspect.mp4 for inspection
+        export_to_video(frames, str(OUT / f"{it['id']}.suspect.mp4"), fps=PARAMS.get("fps", 16))
         redo.append(it); report(clips=done, broken_fp16=[r["id"] for r in redo]); continue
     export_to_video(frames, str(OUT / f"{it['id']}.mp4"), fps=PARAMS.get("fps", 16))
     done.append({"id": it["id"], "s": round(time.time() - s, 1), "size": f"{dims[0]}x{dims[1]}", "frames": dims[2],
                  **timing(time.time() - s)})
     report(clips=done)
+if redo and is_t4():                         # measured: bf16 attention on T4 has no fused kernel -> 18 GB matrix, OOM
+    for it in redo:
+        failed.append({"id": it["id"], "why": "fp16 output looked broken; bf16 retry impossible on T4 (see .suspect.mp4)"})
+    report(failed=failed); redo = []
 if redo and dtype == torch.float16:          # fp16 overflowed on these clips: rebuild once in bf16 (slower, exact)
     for p in pipes:
         if p is not None:
@@ -239,8 +244,8 @@ if redo and dtype == torch.float16:          # fp16 overflowed on these clips: r
         s = time.time()
         try:
             frames, dims = render(pipes, it, torch.bfloat16)
-        except (FloatingPointError, TimeoutError) as e:
-            failed.append({"id": it["id"], "why": "bf16: " + str(e)}); report(failed=failed); continue
+        except (FloatingPointError, TimeoutError, torch.OutOfMemoryError) as e:
+            failed.append({"id": it["id"], "why": "bf16: " + str(e)[:200]}); report(failed=failed); free(); continue
         export_to_video(frames, str(OUT / f"{it['id']}.mp4"), fps=PARAMS.get("fps", 16))
         done.append({"id": it["id"], "s": round(time.time() - s, 1), "dtype": "bf16-retry", **timing(time.time() - s)}); report(clips=done)
 if not done and not probes:
