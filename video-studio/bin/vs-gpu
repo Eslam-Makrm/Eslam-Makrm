@@ -34,7 +34,7 @@ API = "https://api.kaggle.com/v1"
 TOKEN = os.environ.get("KAGGLE_API_TOKEN") or "proxy-injected"
 USER = os.environ.get("KAGGLE_USERNAME", "")
 LEDGER = os.path.join(os.environ.get("VS_HOME", os.path.expanduser("~/.video-studio")), "gpu-ledger.jsonl")
-MAX_INPUT = 25 * 2**20
+MAX_SOURCE = 1_000_000       # Kaggle: "The kernel source must be less than 1 megabytes in size" (measured)
 
 
 def call(service, method, body, timeout=120):
@@ -76,18 +76,48 @@ def need_user():
 JOBS_DIR = os.path.join(os.environ.get("VS_REPO", os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "gpu-jobs")
 
 
+def shrink(path, tmp):
+    """Fit inputs into Kaggle's 1 MB source limit: PNG/BMP/TIFF -> JPEG q92 (visually lossless), WAV -> FLAC
+    (lossless). Returns the new path (other files unchanged)."""
+    import subprocess, tempfile
+    base, ext = os.path.splitext(os.path.basename(path)); ext = ext.lower()
+    new = {".png": ".jpg", ".bmp": ".jpg", ".tif": ".jpg", ".tiff": ".jpg", ".wav": ".flac"}.get(ext)
+    if not new:
+        return path
+    dst = os.path.join(tmp, base + new)
+    args = ["-q:v", "2"] if new == ".jpg" else ["-compression_level", "8"]
+    r = subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", path, *args, dst], capture_output=True)
+    return dst if r.returncode == 0 and os.path.exists(dst) else path
+
+
 def pack(job, params, inputs):
-    blobs, total = {}, 0
-    for p in inputs:
-        b = open(p, "rb").read(); total += len(b)
-        if total > MAX_INPUT:
-            sys.exit(f"inputs exceed {MAX_INPUT >> 20} MB; downscale them or split the job")
-        blobs[os.path.basename(p)] = base64.b64encode(b).decode()
+    """Job + shared runtime + params + inputs (base64) in one script < 1 MB. Oversized inputs are re-encoded
+    (shrink) and every mention of their file name in params is updated."""
+    import tempfile
     rd = lambda f: open(f, encoding="utf-8").read()
     jobs_dir = os.path.dirname(os.path.abspath(job))
     boot = rd(os.path.join(jobs_dir, "_boot.tmpl")); common = rd(os.path.join(jobs_dir, "_common.py"))
     b64 = lambda t: base64.b64encode(t.encode()).decode()
-    return boot % {"params": json.dumps(params), "inputs": json.dumps(blobs), "common": b64(common), "job": b64(rd(job))}
+
+    def build(paths, prm):
+        blobs = {os.path.basename(p): base64.b64encode(open(p, "rb").read()).decode() for p in paths}
+        return boot % {"params": json.dumps(prm), "inputs": json.dumps(blobs), "common": b64(common), "job": b64(rd(job))}
+
+    text = build(inputs, params)
+    if len(text.encode()) < MAX_SOURCE:
+        return text
+    tmp = tempfile.mkdtemp(prefix="vs-pack-"); paths, ptxt = [], json.dumps(params)
+    for p in inputs:
+        q = shrink(p, tmp); paths.append(q)
+        if q != p:
+            ptxt = ptxt.replace(json.dumps(os.path.basename(p)), json.dumps(os.path.basename(q)))
+            print(f"input {os.path.basename(p)} -> {os.path.basename(q)} "
+                  f"({os.path.getsize(p) >> 10} -> {os.path.getsize(q) >> 10} KB) for Kaggle's 1 MB limit", file=sys.stderr)
+    text = build(paths, json.loads(ptxt))
+    if len(text.encode()) >= MAX_SOURCE:
+        sys.exit(f"job + inputs are {len(text.encode()) >> 10} KB even after re-encoding; Kaggle accepts < 1 MB. "
+                 "Shorten the audio/video inputs (e.g. one shot per job) or split the job")
+    return text
 
 
 def submit(a):

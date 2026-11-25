@@ -31,4 +31,17 @@ except SystemExit as e:
 print("submissions", subs[0], "deletes", calls.count("DeleteKernel"), "exit", code, "fake minutes", round(clock[0] / 60))
 assert subs[0] == 3 and calls.count("DeleteKernel") == 2 and code == 0, calls
 PY
-echo "PASS vs-gpu run: stalled submissions withdrawn and resubmitted, third one completes"
+# Kaggle's 1 MB source limit: oversized PNG/WAV inputs are re-encoded (JPEG/FLAC) and params renamed to match
+ffmpeg -v error -f lavfi -i "testsrc2=s=1024x1024" -frames:v 1 "$T/face.png"
+ffmpeg -v error -f lavfi -i "sine=f=220:d=30" -ar 24000 "$T/voice.wav"
+python3 - "$HERE/bin/vs-gpu" "$HERE/gpu-jobs/lipsync_musetalk.py" "$T/face.png" "$T/voice.wav" <<'PY'
+import importlib.machinery, importlib.util, os, re, sys
+loader = importlib.machinery.SourceFileLoader("vsgpu", sys.argv[1])
+spec = importlib.util.spec_from_loader("vsgpu", loader); m = importlib.util.module_from_spec(spec); loader.exec_module(m)
+raw = sum(os.path.getsize(p) for p in sys.argv[3:])
+t = m.pack(sys.argv[2], {"items": [{"id": "x", "video": "face.png", "audio": "voice.wav"}]}, sys.argv[3:])
+print("inputs", raw >> 10, "KB -> packed", len(t) >> 10, "KB")
+assert raw * 4 // 3 > 1_000_000 and len(t) < 1_000_000
+assert '"video": "face.jpg", "audio": "voice.flac"' in t and '"face.jpg"' in t and '"voice.flac"' in t
+PY
+echo "PASS vs-gpu run: stalled submissions withdrawn and resubmitted, third one completes; inputs fit the 1 MB limit"
