@@ -160,7 +160,8 @@ def render(pipes, it, dtype):
         txt = dict(prompt=it["prompt"], negative_prompt=it.get("negative", NEG))
     steps = PARAMS.get("probe_steps", 4) if it.get("probe") else it.get("steps", PARAMS.get("steps", PS))
     cfg = it.get("cfg", 5.0)
-    cut = int(round(steps * float(it.get("cfg_until", PARAMS.get("cfg_until", 1.0))))) if cfg > 1 else 0
+    cfg_frac = it.get("cfg_until", PARAMS.get("cfg_until", 0.5 if is_t4() else 1.0))   # measured fine on T4: 0.5
+    cut = int(round(steps * float(cfg_frac))) if cfg > 1 else 0
     kw = dict(**txt, height=h, width=w, num_frames=f, guidance_scale=cfg if cut else 1.0,
               num_inference_steps=steps, generator=torch.Generator("cpu").manual_seed(it.get("seed", 0)))
     if it.get("probe"):

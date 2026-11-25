@@ -72,6 +72,18 @@ animated by Wan2.2-5B image-to-video. Never plain text-to-video for recurring ch
 92 MB/s), so **batch**: one job for all images, one for all clips, one for all voice lines. Per-item times
 on T4 are recorded in each job's `report.json` — see `docs/ARCHITECTURE.md` for measured numbers.
 
+## Measured T4 costs (Kaggle, 2026-11-25)
+
+| Job | Per item | Setup | Notes |
+|---|---|---|---|
+| SDXL image (2 GPUs in parallel) | 23–33 s | 46 s | 7.1 GB VRAM; 3 images = 0.05 GPU-h |
+| Wan2.1-1.3B clip 832×480×49 (3 s @16 fps) | ~9 min (6.3 denoise + 2.7 decode) | 4.3 min | one clip per T4; CFG on first half of steps; 2 clips ≈ 0.3 GPU-h. 81 frames ≈ 2.2× the denoise time |
+| Chatterbox line | 20 s (Arabic), 3 s (English) | 35 s | 3.2 GB VRAM |
+| MuseTalk, 5.5 s line on a portrait | 140 s | ~2 min installs | 0.16 GPU-h |
+
+Plan GPU work per video from this table and check `vs-gpu quota` first. Wan in bf16 does not fit a T4
+(unfused attention), and First-Block-Cache 0.05 gave no speed-up — do not retry those.
+
 ## When the GPU is unavailable
 
 Kaggle needs a **phone-verified** account for GPU + internet. `vs-gpu` reports "Kaggle gave this session no

@@ -1,0 +1,92 @@
+{
+  "gpu_granted": true,
+  "internet_granted": true,
+  "elapsed_s": 855.3,
+  "gpu": {
+    "n": 2,
+    "name": "Tesla T4",
+    "vram_gb": 14.6,
+    "cc": 7.5
+  },
+  "parallel_gpus": 2,
+  "shards": [
+    {
+      "encode_s": 193.6,
+      "elapsed_s": 801.8,
+      "placement": "whole model on one T4 (prompts encoded first, text encoder freed)",
+      "load_s": 255.9,
+      "dtype": "torch.float16",
+      "model": "wan21-1.3b",
+      "preset": "t4",
+      "low_ram": false,
+      "host_ram_gb": 31.3,
+      "sdpa": {
+        "flash": true,
+        "mem_efficient": true,
+        "torch": "2.11.0+cu130"
+      },
+      "clips": [
+        {
+          "id": "kite",
+          "s": 538.7,
+          "size": "832x480",
+          "frames": 49,
+          "steps": 20,
+          "cfg_steps": 10,
+          "cache": null,
+          "denoise_s": 376.1,
+          "s_per_step": 18.8,
+          "s_per_pass": 12.54,
+          "decode_s": 162.6,
+          "vram_gb": 4.65
+        }
+      ],
+      "vram_peak_gb": [
+        4.65
+      ]
+    },
+    {
+      "encode_s": 193.1,
+      "elapsed_s": 750.4,
+      "placement": "whole model on one T4 (prompts encoded first, text encoder freed)",
+      "load_s": 256.0,
+      "dtype": "torch.float16",
+      "model": "wan21-1.3b",
+      "preset": "t4",
+      "low_ram": false,
+      "host_ram_gb": 31.3,
+      "sdpa": {
+        "flash": true,
+        "mem_efficient": true,
+        "torch": "2.11.0+cu130"
+      },
+      "clips": [
+        {
+          "id": "kite-fbc",
+          "s": 487.2,
+          "size": "832x480",
+          "frames": 49,
+          "steps": 20,
+          "cfg_steps": 10,
+          "cache": 0.05,
+          "denoise_s": 333.3,
+          "s_per_step": 16.66,
+          "s_per_pass": 11.11,
+          "decode_s": 153.9,
+          "vram_gb": 5.0
+        }
+      ],
+      "vram_peak_gb": [
+        5.0
+      ]
+    }
+  ],
+  "shard_exit_codes": [
+    0,
+    0
+  ],
+  "vram_peak_gb": [
+    0.0,
+    0.0
+  ]
+}

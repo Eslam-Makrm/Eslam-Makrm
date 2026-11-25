@@ -245,17 +245,19 @@ def stage_gen(pr, mode):
         vw, vh = {"hq": (1280, 704)}.get(preset, (832, 480))
         if H > W:
             vw, vh = vh, vw
-        maxf = {"t4": 81, "t4-fast": 49, "hq": 121}.get(preset, 81)
+        # measured on T4 (docs/ARCHITECTURE.md): Wan2.1-1.3B 832x480x49 ~9 min per clip incl. decode
+        maxf = {"t4": 49, "t4-long": 81, "t4-fast": 33, "hq": 121}.get(preset, 49)
+        vfps = 24 if vmodel == "wan22-5b" else 16          # native frame rates; the shots stage conforms them
         items, inputs = [], []
         for s in need_vid:
-            n = max(1, round((s.get("dur", 3) + 0.5) * 24 / 4)) * 4 + 1
+            n = max(1, round((s.get("dur", 3) + 0.5) * vfps / 4)) * 4 + 1
             it = {"id": s["id"], "prompt": full_prompt(s), "frames": min(n, maxf), "width": vw, "height": vh,
                   "seed": s.get("seed", zlib.crc32(s["id"].encode()) % 10**6)}
             if s.get("keyframe") and not t2v_only:
                 inputs.append(pr.path(s["keyframe"])); it["image"] = os.path.basename(s["keyframe"])
             items.append(it)
-        per = {"t4-fast": 600, "t4": 1200}.get(preset, 3600) * (3 if vmodel == "wan22-5b" else 1)
-        vparams = {"items": items, "model": vmodel, "preset": preset, "fps": 24, "allow_heavy": heavy,
+        per = {"t4-fast": 600, "t4": 900, "t4-long": 1800}.get(preset, 3600) * (3 if vmodel == "wan22-5b" else 1)
+        vparams = {"items": items, "model": vmodel, "preset": preset, "fps": vfps, "allow_heavy": heavy,
                    "item_budget_s": per, "max_job_s": 900 + per * len(items)}
         if g.get("video_steps"):
             vparams["steps"] = g["video_steps"]

@@ -98,7 +98,7 @@ spec = importlib.util.spec_from_loader("vsgpu", loader); m = importlib.util.modu
 jd = os.path.dirname(sys.argv[2])
 for f in ("_boot.tmpl", "_common.py"):
     shutil.copy(os.path.join(os.path.dirname(os.path.dirname(sys.argv[1])), "gpu-jobs", f), jd)
-items = [{"id": "p-full", "prompt": "a", "probe": True},
+items = [{"id": "p-full", "prompt": "a", "probe": True, "cfg_until": 1.0},
          {"id": "p-cut", "prompt": "a", "probe": True, "cfg_until": 0.5, "cache": 0.05},
          {"id": "slow", "prompt": "a", "frames": 81},
          {"id": "oom", "prompt": "a", "frames": 77},
