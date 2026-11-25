@@ -1,0 +1,64 @@
+{
+  "gpu_granted": true,
+  "internet_granted": true,
+  "elapsed_s": 188.0,
+  "gpu": {
+    "n": 2,
+    "name": "Tesla T4",
+    "vram_gb": 14.6,
+    "cc": 7.5
+  },
+  "parallel_gpus": 2,
+  "shards": [
+    {
+      "load_s": 45.8,
+      "dtype": "torch.float16",
+      "model": "sdxl-base-1.0",
+      "elapsed_s": 115.4,
+      "images": [
+        {
+          "id": "kid-reading",
+          "s": 32.5,
+          "size": "768x1344",
+          "attempt": 1
+        },
+        {
+          "id": "presenter",
+          "s": 22.9,
+          "size": "1024x1024",
+          "attempt": 1
+        }
+      ],
+      "failed": [],
+      "vram_peak_gb": [
+        7.07
+      ]
+    },
+    {
+      "load_s": 46.0,
+      "dtype": "torch.float16",
+      "model": "sdxl-base-1.0",
+      "elapsed_s": 93.0,
+      "images": [
+        {
+          "id": "courier",
+          "s": 33.0,
+          "size": "1344x768",
+          "attempt": 1
+        }
+      ],
+      "failed": [],
+      "vram_peak_gb": [
+        7.07
+      ]
+    }
+  ],
+  "shard_exit_codes": [
+    0,
+    0
+  ],
+  "vram_peak_gb": [
+    0.0,
+    0.0
+  ]
+}
