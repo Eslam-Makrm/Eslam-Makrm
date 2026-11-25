@@ -163,6 +163,18 @@ usually one T4, ≤ 12 h per runtime, idle timeouts and unpublished, changing li
   encoded first with the encoder on the GPU, the encoder is freed, and the pipeline runs on the embeddings.
   Not yet verified on a real Colab runtime.
 
+### One-command delivery test (2026-11-25)
+
+`vs-produce videos/maktaba-30s --gpu off` — a 33.5 s Arabic 9:16 ad built only from GPU outputs that already
+passed (no new GPU time): MuseTalk presenter clip with its Chatterbox line (`vo_audio`), Wan2.1 kite clip (crop
+`focus` on the kite), SDXL stills with parallax moves, Chatterbox "excited" line, Piper narration, burned Arabic
+subtitles. 199 s on 4 CPU cores. QC **PASS**: 1080×1920 30 fps, no black/frozen frames, −14.0 LUFS / −1.4 dBTP,
+speech WER 9 %. Checked on the contact sheet. Mixed voices (Chatterbox female lines, Piper male narrator) — a
+production would voice every line with one engine.
+
+Regression suite after all changes (`tests/run-all.sh --skip-story`): **16 PASS, 1 SKIP** (`test_i2v_tiny` needs
+a local torch), 0 FAIL.
+
 ### GPU ledger
 <!-- updated by hand from report.json of each run -->
 

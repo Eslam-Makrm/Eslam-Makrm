@@ -8,7 +8,7 @@ PROJECT_DIR/production.json (see video-producer/reference/production-schema.md):
   music {track, volume}, grade {look, grain, vignette, letterbox}, subtitles {burn, style},
   characters {name: {refs: [...], prompt: "..."}},
   shots [{id, engine: still|clip|ai-image|ai-video, source, prompt, camera {move, parallax, amount},
-          vo, emotion, dur, pad, transition, transition_dur, onscreen_text, characters}]
+          vo, vo_audio (ready recording of vo), focus [x, y] (clip crop centre 0..1), emotion, dur, pad, transition, transition_dur, onscreen_text, characters}]
 
 Stages (each resumable; outputs in PROJECT_DIR/build, deliverables in PROJECT_DIR/out):
   gen    ai-image / ai-video shots → open models on Kaggle's free GPU (vs-gpu); --gpu colab = manual backup:
@@ -291,6 +291,12 @@ def stage_gen(pr, mode):
 # ---------------------------------------------------------------- voice
 def stage_voice(pr, mode, force):
     v = pr.p.get("voice", {}); eng = v.get("engine", "piper"); lang = pr.p.get("lang", "ar")
+    os.makedirs(os.path.join(pr.b, "vo"), exist_ok=True)
+    for s in pr.p["shots"]:              # vo_audio: a ready recording for this line (e.g. the audio a lip-synced clip was made from)
+        dst = os.path.join(pr.b, "vo", f"{s['id']}.wav")
+        if s.get("vo_audio") and (force or not os.path.exists(dst)):
+            run(["ffmpeg", "-v", "error", "-y", "-i", pr.path(s["vo_audio"]), "-ar", "48000", "-ac", "1", dst])
+            pr.note(s["id"], voice=f"file:{os.path.basename(s['vo_audio'])}")
     lines = [(s["id"], s["vo"]) for s in pr.p["shots"] if s.get("vo")]
     todo = [(i, t) for i, t in lines if force or not os.path.exists(os.path.join(pr.b, "vo", f"{i}.wav"))]
     if not todo or eng == "none":
@@ -380,9 +386,11 @@ def stage_shots(pr, force):
             run(cmd)
         else:
             cd = dur_of(src); speed = 1.0
+            fx, fy = (s.get("focus") or [0.5, 0.5])[:2]   # where to keep when cropping (0..1), e.g. a subject off-centre
             if cd < pl["dur"]:
                 speed = max(0.8, cd / pl["dur"])  # gentle slow-motion first, then hold the last frame
-            vf = (f"setpts=PTS/{speed},fps={fps},scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},"
+            vf = (f"setpts=PTS/{speed},fps={fps},scale={W}:{H}:force_original_aspect_ratio=increase,"
+                  f"crop={W}:{H}:(iw-{W})*{fx}:(ih-{H})*{fy},"
                   f"tpad=stop_mode=clone:stop_duration={pl['dur']},setsar=1,format=yuv420p")
             run(["ffmpeg", "-v", "error", "-y", "-i", src, "-vf", vf, "-t", str(pl["dur"]), "-an",
                  "-c:v", "libx264", "-crf", "17", "-preset", "medium", out])

@@ -1,0 +1,137 @@
+{
+  "title": "مكتبة الحي — إعلان ٣٠ ثانية",
+  "slug": "maktaba-30s",
+  "template": "advert",
+  "prompt": "إعلان عربي ٣٠ ثانية لمكتبة حي توصل كتب الأطفال، من عينات GPU الناجحة (SDXL، Wan2.1، MuseTalk، Chatterbox)",
+  "lang": "ar",
+  "format": "reel",
+  "fps": 30,
+  "voice": {
+    "engine": "piper",
+    "length_scale": 0.9
+  },
+  "music": {
+    "track": null
+  },
+  "grade": {
+    "look": "warm",
+    "grain": 2,
+    "vignette": true
+  },
+  "subtitles": {
+    "burn": true,
+    "style": "reel"
+  },
+  "shots": [
+    {
+      "id": "s01",
+      "engine": "clip",
+      "source": "assets/musetalk-presenter.mp4",
+      "vo": "فِي صَبَاحٍ هَادِئٍ، فَتَحَتْ لَيْلَى كِتَابَهَا الْأَوَّلَ، وَبَدَأَتْ تَقْرَأُ بِهُدُوءٍ.",
+      "vo_audio": "assets/chatterbox-ar-calm.wav",
+      "transition": "fade",
+      "transition_dur": 0.4
+    },
+    {
+      "id": "s02",
+      "engine": "still",
+      "source": "assets/sdxl-kid-reading.jpg",
+      "camera": {
+        "move": "dolly-in",
+        "parallax": true,
+        "amount": 0.08
+      },
+      "vo": "تَخْتَارُ لَيْلَى كُلَّ أُسْبُوعٍ قِصَّةً جَدِيدَةً مِنْ مَكْتَبَةِ الْحَيِّ.",
+      "transition": "smoothleft",
+      "transition_dur": 0.4
+    },
+    {
+      "id": "s03",
+      "engine": "still",
+      "source": "assets/sdxl-courier.jpg",
+      "camera": {
+        "move": "pan-right",
+        "parallax": true,
+        "amount": 0.1
+      },
+      "vo": "وَيُوصِلُهَا السَّاعِي إِلَى بَابِ الْبَيْتِ.",
+      "transition": "fade",
+      "transition_dur": 0.5
+    },
+    {
+      "id": "s04",
+      "engine": "clip",
+      "source": "assets/wan-kite.mp4",
+      "vo": "فَتَطِيرُ الْحِكَايَاتُ بِخَيَالِهَا إِلَى عَوَالِمَ مُلَوَّنَةٍ.",
+      "transition": "fade",
+      "transition_dur": 0.5,
+      "focus": [
+        0.72,
+        0.5
+      ]
+    },
+    {
+      "id": "s05",
+      "engine": "still",
+      "source": "assets/sdxl-kid-reading.jpg",
+      "camera": {
+        "move": "pull-out",
+        "amount": 0.08
+      },
+      "vo": "وَاو! لَقَدْ قَرَأَتْ الْقِصَّةَ كُلَّهَا وَحْدَهَا! هَلْ تُصَدِّقُ ذَلِكَ؟",
+      "vo_audio": "assets/chatterbox-ar-excited.wav",
+      "transition": "smoothleft",
+      "transition_dur": 0.4
+    },
+    {
+      "id": "s06",
+      "engine": "still",
+      "source": "assets/sdxl-presenter.jpg",
+      "camera": {
+        "move": "dolly-in",
+        "parallax": true,
+        "amount": 0.06
+      },
+      "vo": "اُطْلُبْ قِصَّتَكَ الْأُولَى مِنْ مَكْتَبَةِ الْحَيِّ الْيَوْمَ."
+    }
+  ],
+  "_timeline": [
+    {
+      "id": "s01",
+      "t_mid": 3.98,
+      "onscreen_text": "",
+      "characters": []
+    },
+    {
+      "id": "s02",
+      "t_mid": 10.85,
+      "onscreen_text": "",
+      "characters": []
+    },
+    {
+      "id": "s03",
+      "t_mid": 15.79,
+      "onscreen_text": "",
+      "characters": []
+    },
+    {
+      "id": "s04",
+      "t_mid": 20.22,
+      "onscreen_text": "",
+      "characters": []
+    },
+    {
+      "id": "s05",
+      "t_mid": 25.94,
+      "onscreen_text": "",
+      "characters": []
+    },
+    {
+      "id": "s06",
+      "t_mid": 31.16,
+      "onscreen_text": "",
+      "characters": []
+    }
+  ],
+  "_deliverable": "out/maktaba-30s.mp4"
+}

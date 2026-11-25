@@ -64,6 +64,8 @@ GPU job scripts: `gpu-jobs/`. Regression suite: `tests/run-all.sh`.
 | File | What it shows |
 |---|---|
 | `samples/01…07` | phase-1 engines: promo, Arabic reel + voice, auto-subtitles, Manim lesson, explainer, editing, painted story |
+| `samples/09-maktaba-30s-gpu-assets.mp4` | **one command → 33.5 s Arabic ad** from Kaggle T4 outputs: MuseTalk talking presenter, Wan2.1 clip, SDXL stills, Chatterbox + Piper voices; QC PASS (WER 9 %, −14.0 LUFS) |
+| `samples/ai-images/`, `samples/ai-video/`, `samples/lipsync/` | SDXL, Wan2.1-1.3B and MuseTalk results from Kaggle T4 with their `report.json` |
 | `samples/voice/*.wav` | Chatterbox Multilingual on Kaggle T4: Arabic calm, Arabic excited, English (raw, before the −14 LUFS mix) |
 | `samples/08-qari-ad-one-prompt.mp4` | **one prompt → 21.7 s Arabic ad reel**: 3 HyperFrames shots + painted still with parallax (AI-video fallback), Piper voice, transitions, subtitles; QC PASS (speech WER 7 %, −14.0 LUFS) |
 

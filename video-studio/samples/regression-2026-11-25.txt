@@ -1,0 +1,18 @@
+================ summary
+PASS  motion-graphics (hyperframes)  suite4/01-motion-graphics-promo.mp4
+PASS  arabic-motion-graphics + social 9:16 + arabic-voiceover  suite4/02-arabic-social-reel.mp4
+PASS  auto-subtitles (ar, reel style)  suite4/03-arabic-reel-subtitled.mp4
+PASS  educational (manim + arabic narration)  suite4/04-educational-lesson-ar.mp4
+PASS  educational explainer (explainroo)  suite4/05-explainer-en.mp4
+PASS  video-editing  suite4/06-edited-9x16.mp4
+PASS  cinematic-camera (parallax dolly-in)  suite4/09-parallax.mp4
+PASS  lip-sync 2D (rhubarb)
+PASS  video-producer one-prompt ad (vs-produce + vs-qc)  suite4/11-qari-ad.mp4
+PASS  test_gpu_runtime
+PASS  test_gpu_resubmit
+PASS  test_video_job_mock
+PASS  test_produce_async
+PASS  test_colab
+PASS  test_produce_colab
+SKIP  test_i2v_tiny (no VS_TORCH_PY)
+PASS  Kaggle API (quota)

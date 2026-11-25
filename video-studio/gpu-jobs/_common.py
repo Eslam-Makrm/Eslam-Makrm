@@ -149,10 +149,11 @@ def load_pipe(cls, repo, revision, dtype, fp8_ok=True, prefer=None, **kw):
     if force in (None, "offload"):
         try:
             pipe = cls.from_pretrained(repo, revision=revision, torch_dtype=dtype, **kw)
-            if fp8_ok and gpu_info()["vram_gb"] < 20 and hasattr(pipe, "transformer"):
+            fp8 = fp8_ok and gpu_info()["vram_gb"] < 20 and hasattr(pipe, "transformer")
+            if fp8:
                 pipe.transformer.enable_layerwise_casting(storage_dtype=torch.float8_e4m3fn, compute_dtype=dtype)
             pipe.enable_model_cpu_offload(gpu_id=0)
-            report(placement="fp8 transformer + model CPU offload (1 GPU)", placement_errors=errors)
+            report(placement=("fp8 transformer + " if fp8 else "") + "model CPU offload (1 GPU)", placement_errors=errors)
             return pipe
         except Exception as e:
             errors.append(f"offload: {type(e).__name__}: {str(e)[:200]}")
