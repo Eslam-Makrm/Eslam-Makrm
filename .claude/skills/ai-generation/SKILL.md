@@ -1,6 +1,6 @@
 ---
 name: ai-generation
-description: Generate AI images, AI video (text-to-video and image-to-video), expressive Arabic/English speech and realistic lip sync with open-source models on Kaggle's free GPU, fully automated from this session (vs-gpu submits, waits and downloads — no browser). Models are Z-Image-Turbo, Wan2.2-TI2V-5B, Chatterbox Multilingual and MuseTalk 1.5 — all licensed for commercial use. Use when a shot needs a generated picture or real motion, for "generate an image/video", "AI video", "صورة بالذكاء الاصطناعي", "فيديو بالذكاء الاصطناعي", or when video-producer routes a shot to ai-image / ai-video.
+description: Generate AI images, AI video (text-to-video and image-to-video), expressive Arabic/English speech and realistic lip sync with open-source models on Kaggle's free GPU, fully automated from this session (vs-gpu submits, waits and downloads — no browser). Models are Z-Image-Turbo (SDXL as light fallback), Wan2.2-TI2V-5B (Wan2.1-1.3B light), Chatterbox Multilingual and MuseTalk 1.5, all tuned for Kaggle's free 2× T4 and licensed for commercial use. Use when a shot needs a generated picture or real motion, for "generate an image/video", "AI video", "صورة بالذكاء الاصطناعي", "فيديو بالذكاء الاصطناعي", or when video-producer routes a shot to ai-image / ai-video.
 ---
 
 # AI generation on the free cloud GPU (Kaggle)
@@ -8,23 +8,38 @@ description: Generate AI images, AI video (text-to-video and image-to-video), ex
 ```bash
 source ~/.video-studio/env.sh
 vs-gpu quota                                            # GPU hours left this week (30 h/week, resets Saturday 00:00 UTC)
-vs-gpu run $VS_REPO/gpu-jobs/<job>.py OUT_DIR --params @params.json [--input file]... [--accelerator NvidiaL4]
+vs-gpu run $VS_REPO/gpu-jobs/<job>.py OUT_DIR --params @params.json [--input file]...
 ```
 
-`vs-gpu run` packs the job + params + inputs into one private Kaggle script, runs it on a T4 (default,
-16 GB, fp16) or L4 (24 GB, bf16, faster), waits, downloads `OUT_DIR/*` plus `report.json` (timings) and
+`vs-gpu run` packs the job + params + inputs into one private Kaggle script, runs it on Kaggle's free
+2× Tesla T4 (14.6 GB each; everything is tuned for T4, nothing depends on L4), waits, downloads `OUT_DIR/*` plus `report.json` (timings) and
 `kaggle.log`. The Kaggle token is a network secret injected by the proxy; `KAGGLE_USERNAME` is set in the
 environment. Inside `video-producer`, `vs-produce` calls these jobs for you, batched.
 
-## Jobs (`$VS_REPO/gpu-jobs/`)
+## Jobs (`$VS_REPO/gpu-jobs/`), tuned for Kaggle's free 2× Tesla T4
 
-| Job | Model (licence) | Params | Notes |
+Every job gets the shared runtime (`_common.py`): GPU detection, T4-aware dtype (fp16 where the model is
+fp16-safe — T4 has no native bf16), `load_pipe` (text encoder on one T4 + transformer on the other via
+`device_map="balanced"` → fallback fp8 weights + CPU offload → sequential offload), VAE tiling, black/NaN
+output guard, and `shard()` which runs small models once per GPU in parallel.
+
+| Job | Models (licence) | Params | T4 plan |
 |---|---|---|---|
-| `image_zimage.py` | Z-Image-Turbo 6B (Apache-2.0) | `{"items":[{"id","prompt","width","height","seed"}],"steps":8}` | ~1280×720 keyframes; strong at photoreal + Arabic-free text; batch many per job |
-| `video_wan22.py` | Wan2.2-TI2V-5B (Apache-2.0) | `{"items":[{"id","prompt","image"?, "frames":121,"width":1280,"height":704,"seed"}],"steps":30,"fps":24}` | 5 s 720p clips; `image` = keyframe in inputs → image-to-video (best consistency); frames 4k+1 |
-| `tts_chatterbox.py` | Chatterbox Multilingual (MIT) | `{"lang":"ar","voice"?: "ref.wav","lines":[{"id","text","exaggeration","cfg"}]}` | emotion: exaggeration 0.25 calm → 1.0 dramatic; lower cfg to 0.3 when > 0.65 |
-| `lipsync_musetalk.py` | MuseTalk 1.5 (MIT) | `{"items":[{"id","video","audio"}]}` | re-mouths a face video/still to the voice; consented or AI-generated faces only |
-| `probe.py` | — | — | reports GPU, VRAM, bf16, TFLOPS, HF download speed |
+| `image.py` | `zimage`: Z-Image-Turbo 6B (Apache-2.0) · `sdxl`: SDXL base 1.0 (OpenRAIL++) + fp16-fix VAE (MIT) | `{"model","items":[{"id","prompt","width","height","seed"}],"steps"}` | Z-Image split over both T4s; on OOM/broken output → **SDXL automatically** (fp16, one copy per T4, parallel) |
+| `video.py` | `wan22-5b`: Wan2.2-TI2V-5B (Apache-2.0, text+image-to-video) · `wan21-1.3b`: Wan2.1-T2V-1.3B (Apache-2.0, light, text-only) | `{"model","preset":"t4"\|"t4-fast"\|"hq","items":[{"id","prompt","image"?,"frames","seed"}]}` | preset `t4` = 832×480, 81 frames (3.4 s), 20 steps, fp16 + bf16 redo of broken clips; `vs-produce` upscales to the delivery size. `hq` (720p, 121 f) is for bigger GPUs only |
+| `tts_chatterbox.py` | Chatterbox Multilingual 0.5B (MIT) | `{"lang","voice"?,"lines":[{"id","text","exaggeration","cfg"}]}` | one copy per T4, lines split across both |
+| `lipsync_musetalk.py` | MuseTalk 1.5 (MIT; pinned 2536eaf, weights from official HF) | `{"items":[{"id","video","audio"}],"fp16":true}` | fp16, one T4 |
+| `probe.py` | — | — | GPU, VRAM, TFLOPS, HF download speed |
+
+In `production.json → gpu`: `image_model` (zimage|sdxl), `video_model` (wan22-5b|wan21-1.3b),
+`video_preset` (t4|t4-fast|hq), `accelerator` (default NvidiaTeslaT4 — never depend on L4).
+
+## Don't burn the session waiting
+
+`vs-gpu run` polls Kaggle from a local process (no model usage). For long jobs use
+`vs-produce DIR --async`: it submits the batched jobs, finishes every CPU stage it can, and exits 75; run
+the same command later (or after other work) — it checks each job **once** and continues. Never write
+polling loops of your own. Free accounts get **one GPU session at a time**: submit jobs sequentially.
 
 ## Prompts that work (Wan / Z-Image)
 
@@ -37,9 +52,9 @@ Character consistency: generate the **keyframe** with the character-bible prompt
 
 ## Budget and timing (free tier)
 
-30 GPU-hours/week. Measured/estimated per item on T4: image ≈ 10–20 s, 5-s 720p clip several minutes,
-TTS line ≈ 5–10 s, plus ~3–6 min per job for start-up and model download — so **batch**: one job for all
-images, one for all clips. `vs-gpu quota` before big runs; L4 for video when available.
+30 GPU-hours/week (verified). Each job pays start-up + model download (Z-Image: ~4 min measured at
+92 MB/s), so **batch**: one job for all images, one for all clips, one for all voice lines. Per-item times
+on T4 are recorded in each job's `report.json` — see `docs/ARCHITECTURE.md` for measured numbers.
 
 ## When the GPU is unavailable
 

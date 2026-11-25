@@ -25,6 +25,7 @@ VS_SKILLS = os.environ.get("VS_SKILLS", "")
 VS_REPO = os.environ.get("VS_REPO", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 BIN = os.path.dirname(os.path.abspath(__file__))
 PY = os.path.join(VS_HOME, "venv", "bin", "python")
+VS_GPU = os.environ.get("VS_GPU_BIN") or os.path.join(BIN, "vs-gpu")   # override only in tests
 SIZES = {"reel": (1080, 1920), "youtube": (1920, 1080), "square": (1080, 1080), "feed": (1080, 1350)}
 XFADES = {"cut", "fade", "fadeblack", "fadewhite", "dissolve", "wipeleft", "wiperight", "wipeup", "wipedown",
           "slideleft", "slideright", "slideup", "slidedown", "smoothleft", "smoothright", "circleopen", "circleclose",
@@ -64,6 +65,7 @@ class Project:
         self.fps = int(self.p.get("fps", 30))
         self.route_f = os.path.join(self.b, "route.json")
         self.route = json.load(open(self.route_f)) if os.path.exists(self.route_f) else {}
+        self.asynchronous = False
 
     def path(self, rel):
         return rel if os.path.isabs(rel) else os.path.join(self.d, rel)
@@ -88,7 +90,7 @@ def gpu_ready(mode):
         if not st.get("granted") and time.time() - st.get("t", 0) < 6 * 3600:
             return False, ("Kaggle granted no GPU on the last try (phone verification?); "
                            "`vs-gpu run $VS_REPO/gpu-jobs/probe.py /tmp/p` re-checks, or use --gpu kaggle")
-    r = subprocess.run([os.path.join(BIN, "vs-gpu"), "quota"], capture_output=True, text=True)
+    r = subprocess.run([VS_GPU, "quota"], capture_output=True, text=True)
     if r.returncode:
         return False, f"Kaggle unreachable: {r.stderr.strip()[-200:]}"
     q = json.loads(r.stdout)
@@ -97,19 +99,57 @@ def gpu_ready(mode):
     return True, f"Kaggle GPU {q['gpu_left_h']} h left this week"
 
 
+class Pending(Exception):
+    pass
+
+
 def gpu_job(pr, job, items, name, inputs=(), timeout=5400, accel=None):
+    """Run one batched Kaggle job. Blocking by default (vs-gpu polls locally, no Claude usage).
+    With --async: submit and return at once (Pending); a later vs-produce run checks ONCE and collects it."""
     out = os.path.join(pr.b, "gen", name)
     params = os.path.join(pr.b, "gen", f"{name}.params.json")
+    state = os.path.join(pr.b, "gen", f"{name}.job.json")
+    vg = VS_GPU
+    if pr.asynchronous and os.path.exists(state):
+        ref = json.load(open(state))["ref"]
+        st = subprocess.run([vg, "status", ref], capture_output=True, text=True).stdout.split()
+        st = st[0] if st else "queued"
+        if st == "complete":
+            subprocess.run([vg, "fetch", ref, out], capture_output=True, text=True); os.remove(state)
+            rep = os.path.join(out, "report.json")
+            r = json.load(open(rep)) if os.path.exists(rep) else {}
+            if r.get("error"):
+                log(f"GPU job {name} failed: {r['error']}"); return None
+            return out
+        if st in ("error", "cancelled", "cancel_acknowledged"):
+            subprocess.run([vg, "fetch", ref, out], capture_output=True, text=True); os.remove(state)
+            log(f"GPU job {name} failed on Kaggle (see {out}/kaggle.log)"); return None
+        raise Pending(f"{name}: {ref} is {st or 'queued'}")
     json.dump(items, open(params, "w", encoding="utf-8"), ensure_ascii=False)
-    cmd = [os.path.join(BIN, "vs-gpu"), "run", os.path.join(VS_REPO, "gpu-jobs", job), out, "--name", f"{name}",
-           "--params", "@" + params, "--timeout", str(timeout),
-           "--accelerator", accel or pr.p.get("gpu", {}).get("accelerator", "NvidiaTeslaT4")]
+    common = ["--name", name, "--params", "@" + params, "--timeout", str(timeout),
+              "--accelerator", accel or pr.p.get("gpu", {}).get("accelerator", "NvidiaTeslaT4")]
     for i in inputs:
-        cmd += ["--input", i]
+        common += ["--input", i]
+    jobf = os.path.join(VS_REPO, "gpu-jobs", job)
+    if pr.asynchronous:
+        r = subprocess.run([vg, "submit", jobf, *common], capture_output=True, text=True)
+        if r.returncode:
+            log(f"GPU submit failed: {r.stderr[-500:]}"); return None
+        json.dump({"ref": r.stdout.strip(), "submitted": time.time()}, open(state, "w"))
+        log(f"GPU job {name} submitted ({r.stdout.strip()}); rerun vs-produce later to collect it")
+        raise Pending(f"{name} submitted")
     log("GPU job", name, f"({len(inputs)} inputs)")
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    r = subprocess.run([vg, "run", jobf, out, *common], capture_output=True, text=True)
     sys.stderr.write(r.stderr[-2000:])
     return out if r.returncode == 0 else None
+
+
+def job_model(out, default):
+    try:
+        r = json.load(open(os.path.join(out, "report.json")))
+        return r.get("model") or (r.get("shards") or [{}])[0].get("model") or default
+    except Exception:
+        return default
 
 
 def stage_gen(pr, mode):
@@ -133,7 +173,8 @@ def stage_gen(pr, mode):
             iw = ih = 1024
         items = {"items": [{"id": s["id"], "prompt": full_prompt(s), "width": iw, "height": ih,
                             "seed": s.get("seed", abs(hash(s["id"])) % 10**6)} for s in need_img], "steps": 8}
-        out = gpu_job(pr, "image_zimage.py", items, "images")
+        items["model"] = pr.p.get("gpu", {}).get("image_model", "zimage")
+        out = gpu_job(pr, "image.py", items, "images")
         for s in need_img:
             f = os.path.join(out or "", f"{s['id']}.png")
             if out and os.path.exists(f):
@@ -143,25 +184,31 @@ def stage_gen(pr, mode):
                 s[key] = os.path.relpath(dst, pr.d)
                 if s["engine"] == "ai-image":
                     s["engine"] = "still"
-                pr.note(s["id"], image="z-image-turbo@kaggle")
+                pr.note(s["id"], image=f"{job_model(out, 'image')}@kaggle-t4")
     if need_vid and ok:
-        vw, vh = (1280, 704) if W >= H else (704, 1280)
+        g = pr.p.get("gpu", {}); preset = g.get("video_preset", "t4")
+        vw, vh = {"hq": (1280, 704)}.get(preset, (832, 480))
+        if H > W:
+            vw, vh = vh, vw
+        maxf = {"t4": 81, "t4-fast": 49, "hq": 121}.get(preset, 81)
         items, inputs = [], []
         for s in need_vid:
-            n = max(1, round((s.get("dur", 5) + 0.5) * 24 / 4)) * 4 + 1
-            it = {"id": s["id"], "prompt": full_prompt(s), "frames": min(n, 121), "width": vw, "height": vh,
+            n = max(1, round((s.get("dur", 3) + 0.5) * 24 / 4)) * 4 + 1
+            it = {"id": s["id"], "prompt": full_prompt(s), "frames": min(n, maxf), "width": vw, "height": vh,
                   "seed": s.get("seed", abs(hash(s["id"])) % 10**6)}
             if s.get("keyframe"):
                 inputs.append(pr.path(s["keyframe"])); it["image"] = os.path.basename(s["keyframe"])
             items.append(it)
-        out = gpu_job(pr, "video_wan22.py", {"items": items, "steps": pr.p.get("gpu", {}).get("video_steps", 30), "fps": 24},
-                      "clips", inputs=inputs, timeout=10800,
-                      accel=pr.p.get("gpu", {}).get("video_accelerator", "NvidiaL4"))
+        vparams = {"items": items, "model": g.get("video_model", "wan22-5b"), "preset": preset, "fps": 24}
+        if g.get("video_steps"):
+            vparams["steps"] = g["video_steps"]
+        out = gpu_job(pr, "video.py", vparams, "clips", inputs=inputs, timeout=10800,
+                      accel=g.get("video_accelerator", "NvidiaTeslaT4"))
         for s in need_vid:
             f = os.path.join(out or "", f"{s['id']}.mp4")
             if out and os.path.exists(f):
                 dst = os.path.join(pr.d, "assets", f"{s['id']}.mp4"); shutil.copy(f, dst)
-                s["source"] = os.path.relpath(dst, pr.d); pr.note(s["id"], video="wan2.2-ti2v-5b@kaggle")
+                s["source"] = os.path.relpath(dst, pr.d); pr.note(s["id"], video=f"{job_model(out, 'video')}@kaggle-t4")
     # fallbacks — never stop the film for a missing GPU
     for s in shots:
         if s.get("engine") == "ai-video" and not s.get("source"):
@@ -426,11 +473,26 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("project"); ap.add_argument("--stage", default="all", choices=["all", "gen", "voice", "shots", "edit", "qc"])
     ap.add_argument("--gpu", default="auto", choices=["auto", "kaggle", "off"]); ap.add_argument("--force", action="store_true")
+    ap.add_argument("--async", dest="asynchronous", action="store_true",
+                    help="submit GPU jobs and return; rerun later to collect them (no waiting in this process)")
     a = ap.parse_args()
-    pr = Project(a.project); t0 = time.time()
+    pr = Project(a.project); pr.asynchronous = a.asynchronous; t0 = time.time()
     st = a.stage
-    if st in ("all", "gen"): stage_gen(pr, a.gpu)
-    if st in ("all", "voice"): stage_voice(pr, a.gpu, a.force)
+    pending = []
+    if st in ("all", "gen"):
+        try:
+            stage_gen(pr, a.gpu)
+        except Pending as e:
+            pending.append(str(e)); pr.save()
+    if st in ("all", "voice"):
+        try:
+            stage_voice(pr, a.gpu, a.force)
+        except Pending as e:
+            pending.append(str(e)); pr.save()
+    if pending:
+        log("GPU work pending — CPU stages that could run are done. Rerun `vs-produce` later (it checks once "
+            "and continues):", "; ".join(pending))
+        sys.exit(75)
     if st in ("all", "shots"): stage_shots(pr, a.force)
     if st in ("all", "edit"): stage_edit(pr)
     ok = True

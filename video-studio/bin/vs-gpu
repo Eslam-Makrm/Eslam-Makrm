@@ -7,6 +7,7 @@
   vs-gpu status REF                             queued / running / complete / error
   vs-gpu wait REF [--timeout S]                 poll until done
   vs-gpu fetch REF OUT_DIR                      download /kaggle/working/out/* and the log
+  vs-gpu cancel REF                             delete a stuck studio kernel (only USER/vs-*) to free its GPU slot
 
 Options for run/submit:
   --name NAME            kernel slug suffix (default: the job file's name) -> USER/vs-NAME
@@ -66,35 +67,7 @@ def need_user():
         sys.exit("set KAGGLE_USERNAME (your kaggle.com/<username>)")
 
 
-BOOT = r'''# --- packed by vs-gpu: inputs and params ---
-import base64, json, os, pathlib, time
-_T0 = time.time()
-IN = pathlib.Path("/kaggle/working/in"); OUT = pathlib.Path("/kaggle/working/out")
-IN.mkdir(parents=True, exist_ok=True); OUT.mkdir(parents=True, exist_ok=True)
-PARAMS = json.loads(%(params)r)
-for _n, _b in json.loads(%(inputs)r).items():
-    (IN / _n).write_bytes(base64.b64decode(_b))
-def report(**kw):  # jobs call report(...) to add facts to out/report.json
-    p = OUT / "report.json"; d = json.loads(p.read_text()) if p.exists() else {}
-    d.update(kw); d["elapsed_s"] = round(time.time() - _T0, 1); p.write_text(json.dumps(d, indent=2))
-def _env_check():  # did Kaggle grant what the job asked for? (GPU + internet need a phone-verified account)
-    import shutil as _sh, socket as _so, subprocess as _sp
-    gpu = bool(_sh.which("nvidia-smi")) and _sp.run(["nvidia-smi", "-L"], capture_output=True).returncode == 0
-    try: _so.getaddrinfo("huggingface.co", 443); net = True
-    except OSError: net = False
-    report(gpu_granted=gpu, internet_granted=net)
-    if PARAMS.get("_need_gpu") and not gpu:
-        report(error=("Kaggle gave this session no GPU: this accelerator is busy/unavailable or another GPU session "
-                      "is running (free accounts get one at a time); retry later or use NvidiaTeslaT4.") if net else
-                     ("Kaggle gave this session no GPU and no internet: the account needs phone verification "
-                      "(kaggle.com > Settings > Phone verification)."), gpu_unavailable_reason="busy" if net else "unverified")
-        raise SystemExit(3)
-    if PARAMS.get("_need_internet") and not net:
-        report(error="Kaggle gave this session no internet (phone verification needed, or internet off).")
-        raise SystemExit(3)
-_env_check()
-# --- job ---
-'''
+JOBS_DIR = os.path.join(os.environ.get("VS_REPO", os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "gpu-jobs")
 
 
 def pack(job, params, inputs):
@@ -104,7 +77,11 @@ def pack(job, params, inputs):
         if total > MAX_INPUT:
             sys.exit(f"inputs exceed {MAX_INPUT >> 20} MB; downscale them or split the job")
         blobs[os.path.basename(p)] = base64.b64encode(b).decode()
-    return BOOT % {"params": json.dumps(params), "inputs": json.dumps(blobs)} + open(job, encoding="utf-8").read()
+    rd = lambda f: open(f, encoding="utf-8").read()
+    jobs_dir = os.path.dirname(os.path.abspath(job))
+    boot = rd(os.path.join(jobs_dir, "_boot.tmpl")); common = rd(os.path.join(jobs_dir, "_common.py"))
+    b64 = lambda t: base64.b64encode(t.encode()).decode()
+    return boot % {"params": json.dumps(params), "inputs": json.dumps(blobs), "common": b64(common), "job": b64(rd(job))}
 
 
 def submit(a):
@@ -122,7 +99,11 @@ def submit(a):
         body["machineShape"] = a.accelerator
     r = call("kernels.KernelsApiService", "SaveKernel", body, timeout=300)
     if r.get("error"):
-        sys.exit(f"Kaggle refused the job: {r['error']}")
+        hint = ""
+        if "session count" in r["error"]:
+            hint = ("\n  Free accounts may hold 2 batch GPU sessions. A job stuck in 'queued' keeps its slot: remove it with "
+                    "`vs-gpu cancel USER/vs-NAME` (deletes that studio kernel), then submit again.")
+        sys.exit(f"Kaggle refused the job: {r['error']}{hint}")
     ref = r.get("ref", f"/code/{USER}/{slug}").split("/code/")[-1].strip("/")
     rec = {"ref": ref, "version": r.get("versionNumber"), "accelerator": a.accelerator, "job": os.path.basename(a.job),
            "submitted": time.time()}
@@ -199,6 +180,7 @@ def main():
     p = sub.add_parser("status"); p.add_argument("ref")
     p = sub.add_parser("wait"); p.add_argument("ref"); p.add_argument("--timeout", type=int, default=7200)
     p = sub.add_parser("fetch"); p.add_argument("ref"); p.add_argument("out")
+    p = sub.add_parser("cancel"); p.add_argument("ref")
     a = ap.parse_args()
     if a.cmd == "quota":
         print(json.dumps(quota()))
@@ -210,6 +192,12 @@ def main():
         sys.exit(0 if wait(a.ref, a.timeout) else 1)
     elif a.cmd == "fetch":
         fetch(a.ref, a.out)
+    elif a.cmd == "cancel":
+        u, sl = split(a.ref)
+        if u != USER or not sl.startswith("vs-"):
+            sys.exit("cancel only removes this studio's own kernels (USER/vs-*)")
+        call("kernels.KernelsApiService", "DeleteKernel", {"userName": u, "kernelSlug": sl})
+        print(f"deleted {u}/{sl} (its queued/running session is released)")
     elif a.cmd == "run":
         q = quota()
         if a.accelerator.lower() != "none" and q["gpu_left_h"] < 0.25:

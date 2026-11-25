@@ -1,5 +1,6 @@
 # GPU job: lip-sync a face video or still to speech with MuseTalk 1.5 (Tencent Lyra Lab, MIT).
 # PARAMS: {"items":[{"id":"shot03","video":"face.mp4" or "face.png","audio":"vo3.wav"}]}  (files in IN/)
+# T4: fp16 inference (--use_float16), single GPU (~5 GB).
 # Consent rule: only faces the person owns, AI-generated people, or people who agreed in writing.
 #
 # Reviewed 2026-11-25 at commit 2536eaf: upstream download_weights.sh routes Hugging Face through a
@@ -40,5 +41,5 @@ open(f"{W}/vs_task.yaml", "w").write(yaml.safe_dump(cfg))
 t = time.time()
 subprocess.run([sys.executable, "-m", "scripts.inference", "--inference_config", "vs_task.yaml", "--result_dir", str(OUT),
                 "--unet_model_path", "models/musetalkV15/unet.pth", "--unet_config", "models/musetalkV15/musetalk.json",
-                "--version", "v15"], cwd=W, check=True)
+                "--version", "v15", *(["--use_float16"] if PARAMS.get("fp16", True) else [])], cwd=W, check=True)
 report(lipsync_s=round(time.time() - t, 1), outputs=[p.name for p in OUT.rglob("*.mp4")], musetalk_ref=REF)

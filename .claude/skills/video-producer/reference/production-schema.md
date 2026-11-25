@@ -17,7 +17,8 @@ One file per video, in `videos/<slug>/production.json`. Paths are relative to th
   "music": {"track": null, "volume": 0.18},          // person's track or CC0 only; ducked under the voice
   "grade": {"look": "teal-orange", "grain": 3, "vignette": true},
   "subtitles": {"burn": true, "style": "reel", "keep_tashkeel": false},
-  "gpu": {"accelerator": "NvidiaTeslaT4", "video_steps": 30},             // or NvidiaL4 (faster, 24 GB)
+  "gpu": {"accelerator": "NvidiaTeslaT4", "image_model": "zimage",       // zimage | sdxl (light)
+          "video_model": "wan22-5b", "video_preset": "t4"},              // wan21-1.3b (light, text-only) · t4 | t4-fast | hq
   "characters": {
     "omar": {"prompt": "Omar, 28, Egyptian courier, short black hair, trimmed beard, orange jacket with white stripe",
              "refs": ["characters/omar/front.png"]}
@@ -48,5 +49,6 @@ One file per video, in `videos/<slug>/production.json`. Paths are relative to th
 Camera moves: push-in, pull-out, pan-left/right, tilt-up/down, truck-left/right, crane-up/down,
 orbit-left/right, dolly-in, dolly-zoom, handheld, static (`parallax: true` adds 2.5D depth).
 
-Stages: `vs-produce DIR --stage gen|voice|shots|edit|qc`; `--gpu off` forces CPU-only fallbacks;
+Stages: `vs-produce DIR --stage gen|voice|shots|edit|qc`; `--async` submits GPU jobs and returns (exit 75
+= pending; rerun later); `--gpu off` forces CPU-only fallbacks;
 `--force` re-voices and re-renders. Change a shot → rerun; unchanged shots are reused.

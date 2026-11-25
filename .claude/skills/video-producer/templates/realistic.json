@@ -9,7 +9,9 @@
   },
   "gpu": {
     "accelerator": "NvidiaTeslaT4",
-    "video_steps": 30
+    "image_model": "zimage",
+    "video_model": "wan22-5b",
+    "video_preset": "t4"
   },
   "template": "realistic",
   "format": "youtube",

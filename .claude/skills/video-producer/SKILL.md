@@ -31,7 +31,9 @@ vs-doctor                            # if anything looks missing (install: $VS_R
    arabic-motion-graphics, Manim, animated-stories) into `assets/<id>.mp4`, silent, at the project size.
 5. **Run** `vs-produce videos/<slug>` — generates AI assets on Kaggle (batched: one image job, one video
    job), voices, conforms shots, edits, grades, mixes to −14 LUFS, subtitles, cover, then `vs-qc`.
-   Long GPU jobs: run it in the background and check on it; never sit idle.
+   GPU work: prefer `vs-produce videos/<slug> --async` — it submits the Kaggle jobs, does all CPU work, exits 75;
+   do other work (code-drawn shots, docs) and rerun the same command later; it checks once and continues.
+   Never write your own polling loops.
 6. **QC gate** — read `out/qc-report.md` and **look at** `out/*.sheet.jpg` (and a few frames). On FAIL or
    anything that looks wrong: fix the shot (new prompt/seed, different engine, re-time), `vs-produce` again
    (finished stages are cached). Max 2 regeneration rounds per shot, then explain.
@@ -43,8 +45,8 @@ vs-doctor                            # if anything looks missing (install: $VS_R
 
 | Shot need | 1st choice | Fallback (automatic) |
 |---|---|---|
-| Realistic / cinematic motion (people, nature, product in use) | `ai-video`: Wan2.2-TI2V-5B from a keyframe (Kaggle) | keyframe + parallax camera move |
-| Keyframe / illustration / product hero | `ai-image`: Z-Image-Turbo (Kaggle) | needs a source → draw it in code or use the person's image |
+| Realistic / cinematic motion (people, nature, product in use) | `ai-video`: Wan2.2-TI2V-5B from a keyframe (Kaggle T4, 480p → upscaled) | keyframe + parallax camera move |
+| Keyframe / illustration / product hero | `ai-image`: Z-Image-Turbo (Kaggle T4) → SDXL if Z-Image can't run | needs a source → draw it in code or use the person's image |
 | Titles, kinetic type, Arabic text, UI, charts, logos | `clip` from HyperFrames (`arabic-motion-graphics` for RTL) | — |
 | Math / science / diagrams | `clip` from Manim | — |
 | Painted cartoon / kids story | `clip` from `animated-stories` (+ `lip-sync` 2D mouths) | — |
@@ -52,7 +54,8 @@ vs-doctor                            # if anything looks missing (install: $VS_R
 | Talking presenter (consented face only) | `ai-video` or `clip` → `lip-sync` MuseTalk (Kaggle) | voice-over on B-roll |
 
 Mix engines freely — `vs-produce` conforms everything to one size/fps. Keep AI video to the shots that
-need real motion (≈2–3 GPU-minutes per 5-s clip); stills with parallax and motion graphics carry the rest.
+really need motion (on T4 a 3.4-s 480p clip costs many GPU-minutes); stills with parallax and motion
+graphics carry the rest.
 
 ## Voice
 

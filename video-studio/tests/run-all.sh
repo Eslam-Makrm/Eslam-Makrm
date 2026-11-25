@@ -80,7 +80,12 @@ if echo "مَرْحَبًا بِكُمْ" | "$VS_PY" -m piper -m "$PIPER_VOICES/
 # 11 one-prompt production (video-producer path, CPU route) + QC gate
 cp -R "$HERE/examples/qari-ad-e2e" "$WORK/qari"; rm -rf "$WORK/qari/build" "$WORK/qari/out"
 step "video-producer one-prompt ad (vs-produce + vs-qc)" "$OUT/11-qari-ad.mp4" bash -c "vs-produce '$WORK/qari' --gpu off >/dev/null 2>&1 && cp '$WORK/qari/out/qari-ad.mp4' '$OUT/11-qari-ad.mp4'"
-# 12 cloud GPU backend reachable (no GPU time used)
+# 12 GPU job runtime (packing, 2-GPU fan-out) and vs-produce --async, both on CPU with stubs
+for t in test_gpu_runtime test_produce_async; do
+  echo; echo "=== $t"
+  if bash "$HERE/tests/$t.sh" | tail -1 | grep -q '^PASS'; then RESULTS+=("PASS  $t"); else RESULTS+=("FAIL  $t"); FAIL=1; fi
+done
+# 13 cloud GPU backend reachable (no GPU time used)
 echo; echo "=== cloud GPU backend (Kaggle API)"
 if vs-gpu quota; then RESULTS+=("PASS  Kaggle API (quota)"); else RESULTS+=("FAIL  Kaggle API (quota)"); FAIL=1; fi
 

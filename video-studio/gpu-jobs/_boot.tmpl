@@ -1,0 +1,45 @@
+# --- packed by vs-gpu: inputs, params, shared runtime (gpu-jobs/_common.py), then the job ---
+import base64, json, os, pathlib, time
+_T0 = time.time()
+IN = pathlib.Path("/kaggle/working/in"); OUT = pathlib.Path("/kaggle/working/out")
+IN.mkdir(parents=True, exist_ok=True); OUT.mkdir(parents=True, exist_ok=True)
+PARAMS = json.loads(%(params)r)
+for _n, _b in json.loads(%(inputs)r).items():
+    (IN / _n).write_bytes(base64.b64decode(_b))
+_COMMON_B64 = %(common)r
+_JOB_B64 = %(job)r
+exec(base64.b64decode(_COMMON_B64).decode())
+
+
+def _env_check():  # did Kaggle grant what the job asked for? (GPU + internet need a phone-verified account)
+    import shutil as _sh, socket as _so, subprocess as _sp
+    gpu = bool(_sh.which("nvidia-smi")) and _sp.run(["nvidia-smi", "-L"], capture_output=True).returncode == 0
+    try:
+        _so.getaddrinfo("huggingface.co", 443); net = True
+    except OSError:
+        net = False
+    report(gpu_granted=gpu, internet_granted=net)
+    if PARAMS.get("_need_gpu") and not gpu:
+        report(error=("Kaggle gave this session no GPU: this accelerator is busy/unavailable or another GPU session "
+                      "is running (free accounts get one at a time); retry later.") if net else
+                     ("Kaggle gave this session no GPU and no internet: the account needs phone verification "
+                      "(kaggle.com > Settings > Phone verification)."), gpu_unavailable_reason="busy" if net else "unverified")
+        raise SystemExit(3)
+    if PARAMS.get("_need_internet") and not net:
+        report(error="Kaggle gave this session no internet (phone verification needed, or internet off).")
+        raise SystemExit(3)
+
+
+_env_check()
+try:
+    import torch as _t
+    if _t.cuda.is_available():
+        report(gpu=gpu_info())
+except Exception:
+    pass
+try:
+    exec(compile(base64.b64decode(_JOB_B64).decode(), "job.py", "exec"))
+except _Done:
+    pass
+if json.loads((OUT / "report.json").read_text()).get("error"):
+    raise SystemExit(4)
