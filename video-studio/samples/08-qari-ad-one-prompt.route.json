@@ -1,0 +1,15 @@
+{
+  "s03": {
+    "fallback": "ai-video → keyframe + parallax (Kaggle granted no GPU on the last try (phone verification?); `vs-gpu run $VS_REPO/gpu-jobs/probe.py /tmp/p` re-checks, or use --gpu kaggle)",
+    "voice": "piper:ar_JO-kareem-medium"
+  },
+  "s01": {
+    "voice": "piper:ar_JO-kareem-medium"
+  },
+  "s02": {
+    "voice": "piper:ar_JO-kareem-medium"
+  },
+  "s04": {
+    "voice": "piper:ar_JO-kareem-medium"
+  }
+}

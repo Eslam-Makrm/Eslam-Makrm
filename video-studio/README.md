@@ -1,85 +1,71 @@
-# Codex Video Studio
+# Video Studio
 
-A free, local, open-source AI video production system operated from **OpenAI Codex**.
-استوديو فيديو مجاني ومحلي يعمل داخل Codex: دروس تعليمية، قصص متحركة، موشن جرافيك، تعليق صوتي عربي،
-فيديوهات للسوشيال ميديا، مونتاج، وترجمة تلقائية.
+A free, open-source AI video production studio **operated by Claude**: one prompt in, a finished,
+quality-checked MP4 out. Educational videos, animated stories, realistic AI shots, advertisements and
+social media content, in Arabic and English.
+استوديو فيديو مجاني ومفتوح المصدر يديره Claude: اكتب طلبك مرة واحدة واحصل على فيديو MP4 جاهز ومفحوص.
 
-No accounts, no API keys, no paid credits. Every render, voice and transcript runs on your computer.
+## How it works
 
-## What it makes
+```
+ your prompt ──► Claude (video-producer skill): brief → script (tashkeel) → storyboard → production.json
+                    │
+                    ├─ code-drawn shots on CPU: HyperFrames (motion graphics, Arabic RTL), Manim (lessons),
+                    │  p5.brush (painted stories)
+                    ├─ AI shots on Kaggle's free GPU (vs-gpu, automated): Z-Image-Turbo images,
+                    │  Wan2.2-TI2V-5B text/image-to-video, Chatterbox expressive voice, MuseTalk lip sync
+                    └─ vs-produce: voice → shots (camera moves, 2.5D parallax) → transitions → grade →
+                       music ducking → −14 LUFS → subtitles → cover → vs-qc gate → out/*.mp4
+```
 
-| Need | Engine (licence) | Skill |
-|---|---|---|
-| Educational videos | Manim (MIT) · explainroo + Kokoro (MIT / Apache-2.0) | `manimce-best-practices`, `manim-composer`, `explainroo` |
-| Animated stories | p5.js + p5.brush kit (LGPL / MIT) | `animated-stories` |
-| Motion graphics | HyperFrames (Apache-2.0) + GSAP | `hyperframes`, `hyperframes-registry`, `hyperframes-cli`, `arabic-motion-graphics` |
-| Arabic voiceovers | Piper (GPL-3.0, offline) · edge-tts (free, online) | `arabic-voiceover` |
-| Social media videos | HyperFrames 9:16 · reframe | `arabic-motion-graphics`, `video-editing`, `video-studio` presets |
-| Video editing | ffmpeg · auto-editor (Unlicense) | `video-editing` |
-| Automatic subtitles | faster-whisper (MIT) · libass | `auto-subtitles` |
-| Routing, presets, QC | — | `video-studio` (start here) |
+| Capability | Engine | Runs on | Skill |
+|---|---|---|---|
+| One prompt → finished video | vs-produce + production.json | CPU + Kaggle | `video-producer` |
+| AI images / text-to-video / image-to-video | Z-Image-Turbo, Wan2.2-TI2V-5B (Apache-2.0) | Kaggle GPU | `ai-generation` |
+| Consistent characters | bible + references + image-to-video + DINOv2 check | Kaggle + CPU | `character-bible` |
+| Arabic/English voice with emotion | Chatterbox Multilingual (MIT) · Piper (CPU) · edge-tts (online, opt-in) | Kaggle / CPU | `arabic-voiceover`, `ai-generation` |
+| Lip sync | Rhubarb (2D, CPU) · MuseTalk 1.5 (real faces, GPU) | CPU / Kaggle | `lip-sync` |
+| Script + storyboard | Claude | — | `video-producer` |
+| Camera moves, parallax, transitions, grades | vs-camera (Depth-Anything-V2-Small ONNX), ffmpeg xfade | CPU | `cinematic-camera` |
+| Automated QC | vs-qc: format, black/freeze, loudness, WER, OCR, DINOv2 | CPU | `video-qc` |
+| Motion graphics / Arabic RTL | HyperFrames + GSAP | CPU | `hyperframes`, `arabic-motion-graphics` |
+| Lessons | Manim, explainroo | CPU | `manimce-best-practices`, `explainroo` |
+| Painted stories | p5.js + p5.brush kit | CPU | `animated-stories` |
+| Editing, subtitles | ffmpeg, auto-editor, faster-whisper | CPU | `video-editing`, `auto-subtitles` |
 
-15 skills in total: 9 upstream (pinned, installed with Codex's `$skill-installer`, then adapted)
-and 6 written or adapted for this studio. See [docs/REVIEW.md](docs/REVIEW.md) for how the
-tools were chosen and the security and licence review.
+21 skills in `../.claude/skills` (9 vendored upstream at pinned refs, see `UPSTREAM.md`).
 
-## Install
+## Setup (once per machine; automatic in the configured Claude cloud environment)
 
 ```bash
-git clone <this repo> && cd <repo>/codex-video-studio
-./install.sh --system      # first time: also apt/brew packages (ffmpeg, LaTeX, fonts, cairo/pango)
-./install.sh               # later runs / no sudo
-tests/run-all.sh           # renders one real MP4 per skill into ./samples-out and verifies each
+cd video-studio
+./install.sh --system --gpu-client     # tools, models (~4 GB), fonts, Kaggle client
+source ~/.video-studio/env.sh && vs-doctor --smoke --gpu
 ```
+Cloud GPU: a free Kaggle account, **phone-verified** (Kaggle only grants GPU + internet to verified
+accounts), its API token saved as the environment's network secret for `api.kaggle.com`, and
+`KAGGLE_USERNAME` set. Quota: 30 GPU-hours/week (verified on the account, resets Saturday 00:00 UTC).
 
-Needs: Node 20+, Python 3.10+, ffmpeg with libass, git, Chrome or Chromium; LaTeX for Manim
-formulas. About 4 GB on disk with models. Installs into `~/.codex/skills` and `~/.video-studio`.
-Run `codex` once before installing so its built-in `$skill-installer` is unpacked (otherwise the
-installer falls back to a pinned `git` sparse checkout).
+## Use
 
-## Use it in Codex
+Just ask Claude: *"اعمل ريلز إعلاني ٢٠ ثانية لتطبيق قارئ لتعليم الأطفال القراءة"* or *"a 90-second
+lesson on photosynthesis in English"*. Outputs land in `videos/<slug>/out/` (MP4, SRT, cover, contact
+sheet, QC report, route log).
 
-```
-$video-studio  اعمل ريلز عربي ٢٠ ثانية عن تطبيقي مع تعليق صوتي وترجمة
-$video-studio  a 30-second Manim lesson on the Pythagorean theorem, Arabic narration
-$animated-stories  a 15-second bedtime story about a lost cloud, no text
-$auto-subtitles  add Arabic captions to talk.mp4 for TikTok
-$video-editing  remove the silences from lecture.mp4, then make a 9:16 version
-```
+## Tools (`bin/`, installed to `~/.video-studio/bin`)
 
-Every session's tools come from `source ~/.video-studio/env.sh` (the skills say so).
+`vs-produce` · `vs-gpu` · `vs-camera` · `vs-qc` · `vs-lipsync2d` · `vs-verify` · `vs-hf-check` · `vs-doctor`
+GPU job scripts: `gpu-jobs/`. Regression suite: `tests/run-all.sh`.
 
-## Samples (rendered by the tests on a 4-core CPU, no GPU)
+## Samples (all rendered and verified in a Claude cloud session, 4 CPU cores)
 
-| File | Skill | What it shows |
-|---|---|---|
-| `samples/01-motion-graphics-promo.mp4` | hyperframes | 12 s 16:9 promo, 3 scenes |
-| `samples/02-arabic-social-reel.mp4` | arabic-motion-graphics + arabic-voiceover | 20.5 s 9:16 RTL reel, Piper Arabic voice, −14 LUFS |
-| `samples/03-arabic-reel-subtitled.mp4` | auto-subtitles | Whisper → burned Arabic reel captions |
-| `samples/04-educational-lesson-ar.mp4` | manim + arabic-voiceover | 22.5 s Pythagoras lesson, LaTeX + Arabic text |
-| `samples/05-explainer-en.mp4` | explainroo | 30 s narrated explainer (Kokoro), SRT/VTT |
-| `samples/06-edited-9x16.mp4` | video-editing | silence cut, trim, crossfade join, 9:16 reframe |
-| `samples/07-animated-story.mp4` | animated-stories | 8 s painted story, original character |
-
-## Layout
-
-```
-install.sh            installer (idempotent; pinned versions at the top)
-patch-upstream.py     adapts the upstream skills for Codex (free-only, no telemetry)
-skills/               the 6 studio skills (copied to ~/.codex/skills)
-bin/                  env.sh, vs-verify (MP4 checks + contact sheet), vs-hf-check, vs-doctor (install proof)
-examples/             source of every sample (HyperFrames, Manim, explainroo, p5)
-tests/run-all.sh      regenerates and verifies every sample
-docs/REVIEW.md        tool selection, security and licence review
-samples/              rendered sample MP4s + contact sheets
-```
+| File | What it shows |
+|---|---|
+| `samples/01…07` | phase-1 engines: promo, Arabic reel + voice, auto-subtitles, Manim lesson, explainer, editing, painted story |
+| `samples/08-qari-ad-one-prompt.mp4` | **one prompt → 21.7 s Arabic ad reel**: 3 HyperFrames shots + painted still with parallax (AI-video fallback), Piper voice, transitions, subtitles; QC PASS (speech WER 7 %, −14.0 LUFS) |
 
 ## Licences and limits
 
-- Your videos are yours. Tools keep their own licences (see `docs/REVIEW.md`).
-- Piper's Arabic voice `ar_JO-kareem` has no stated dataset licence and the English `lessac`
-  voice uses the Blizzard-2013 dataset licence (non-commercial terms): fine for personal and educational use; check before commercial use,
-  or use edge-tts / your own recording.
-- edge-tts is free but sends text to Microsoft's online speech service.
-- Rendering is CPU-bound: HyperFrames ≈ 2–3× real time, Manim fast, the painted story kit
-  several seconds per frame without a GPU.
+All models used are licensed for commercial use (licences re-checked on their model cards, see
+`docs/ARCHITECTURE.md`). Piper's `ar_JO-kareem` voice has no stated dataset licence — prefer Chatterbox
+for commercial work. Free-tier limits: 30 Kaggle GPU-hours/week; a 5-s 720p AI clip costs minutes of GPU.

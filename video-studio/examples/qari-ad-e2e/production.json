@@ -1,0 +1,103 @@
+{
+  "title": "قارئ — إعلان ريلز ٢٠ ثانية",
+  "slug": "qari-ad",
+  "template": "advert",
+  "prompt": "اعمل ريلز إعلاني ٢٠ ثانية بالعربي لتطبيق اسمه قارئ يعلّم الأطفال القراءة",
+  "lang": "ar",
+  "format": "reel",
+  "fps": 30,
+  "style": "storybook illustration, warm palette",
+  "voice": {
+    "engine": "chatterbox"
+  },
+  "music": {
+    "track": null,
+    "volume": 0.18
+  },
+  "grade": {
+    "look": "warm",
+    "grain": 2,
+    "vignette": false
+  },
+  "subtitles": {
+    "burn": true,
+    "style": "reel"
+  },
+  "shots": [
+    {
+      "id": "s01",
+      "engine": "clip",
+      "source": "assets/s01-hook.mp4",
+      "dur": 3.0,
+      "vo": "هَلْ يُحِبُّ طِفْلُكَ الْقِرَاءَةَ؟",
+      "emotion": 0.7,
+      "transition": "smoothleft",
+      "transition_dur": 0.4,
+      "onscreen_text": "هل يحب طفلك القراءة"
+    },
+    {
+      "id": "s02",
+      "engine": "clip",
+      "source": "assets/s02-letters.mp4",
+      "dur": 4.5,
+      "vo": "مَعَ تَطْبِيقِ قَارِئ، تَتَحَوَّلُ الْحُرُوفُ إِلَى لُعْبَةٍ مُمْتِعَةٍ.",
+      "emotion": 0.6,
+      "transition": "fade",
+      "transition_dur": 0.5,
+      "onscreen_text": "الحروف تصبح لعبة"
+    },
+    {
+      "id": "s03",
+      "engine": "still",
+      "keyframe": "assets/s03-grow.png",
+      "prompt": "a small sprout grows into a flower under a warm sun, storybook style, slow dolly-in",
+      "camera": {
+        "move": "dolly-in",
+        "parallax": true,
+        "amount": 0.08
+      },
+      "dur": 4.5,
+      "vo": "قِصَصٌ قَصِيرَةٌ، وَصَوْتٌ وَاضِحٌ، وَتَقَدُّمٌ تَرَاهُ كُلَّ يَوْمٍ.",
+      "emotion": 0.5,
+      "transition": "fade",
+      "transition_dur": 0.5,
+      "source": "assets/s03-grow.png"
+    },
+    {
+      "id": "s04",
+      "engine": "clip",
+      "source": "assets/s04-endcard.mp4",
+      "dur": 3.5,
+      "vo": "حَمِّلْ قَارِئ مَجَّانًا، وَابْدَأْ أَوَّلَ قِصَّةٍ الْيَوْمَ.",
+      "emotion": 0.7,
+      "onscreen_text": "قارئ"
+    }
+  ],
+  "_timeline": [
+    {
+      "id": "s01",
+      "t_mid": 1.79,
+      "onscreen_text": "هل يحب طفلك القراءة",
+      "characters": []
+    },
+    {
+      "id": "s02",
+      "t_mid": 6.49,
+      "onscreen_text": "الحروف تصبح لعبة",
+      "characters": []
+    },
+    {
+      "id": "s03",
+      "t_mid": 13.08,
+      "onscreen_text": "",
+      "characters": []
+    },
+    {
+      "id": "s04",
+      "t_mid": 19.01,
+      "onscreen_text": "قارئ",
+      "characters": []
+    }
+  ],
+  "_deliverable": "out/qari-ad.mp4"
+}

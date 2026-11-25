@@ -1,5 +1,7 @@
 # Cloud-first architecture: Codex Cloud + free cloud GPUs
 
+> **Superseded (2026-11-25):** the owner chose Claude as the only agent and no OpenAI/Codex services. Current design and test status: [ARCHITECTURE.md](ARCHITECTURE.md).
+
 Status: **proposal for approval** (2026-11-25). It replaces the local-GPU parts of
 [GAP-ANALYSIS.md](GAP-ANALYSIS.md). The component choices there still stand; this file
 decides **where each component runs**.

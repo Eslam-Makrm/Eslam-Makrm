@@ -1,0 +1,28 @@
+<template>
+  <style>
+    #root { position: absolute; inset: 0; background: #2b3a67; overflow: hidden; font-family: "Cairo"; }
+    #hk-sun { position: absolute; left: 190px; top: 420px; width: 700px; height: 700px; border-radius: 50%;
+              background: radial-gradient(circle, rgba(255,200,87,0.45), rgba(255,200,87,0) 70%); }
+    #hk-text { position: absolute; left: 100px; right: 170px; top: 700px; color: #fff7e8; font-size: 104px;
+               font-weight: 900; line-height: 1.35; text-align: center; }
+    .hk-w { display: inline-block; }
+    #hk-q { color: #ffc857; }
+  </style>
+  <div id="root" data-composition-id="hook" data-width="1080" data-height="1920">
+    <div id="hk-sun" class="clip" data-start="0" data-duration="4"></div>
+    <h1 id="hk-text" class="clip" data-start="0" data-duration="4" dir="rtl" lang="ar">
+      <span class="hk-w" id="hk1">هل</span> <span class="hk-w" id="hk2">يحبّ</span> <span class="hk-w" id="hk3">طفلك</span>
+      <span class="hk-w" id="hk4">القراءة</span><span class="hk-w" id="hk-q">؟</span>
+    </h1>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#hk-sun", { scale: 0.6, opacity: 0.5 }, { scale: 1.2, opacity: 1, duration: 4, ease: "sine.inOut" }, 0);
+    ["#hk1", "#hk2", "#hk3", "#hk4"].forEach((id, i) => {
+      tl.fromTo(id, { y: i === 0 ? 0 : 60, opacity: i === 0 ? 1 : 0 }, { y: 0, opacity: 1, duration: 0.45, ease: "power3.out" }, 0.2 + i * 0.4);
+    });
+    tl.fromTo("#hk-q", { scale: 0, rotation: -25 }, { scale: 1, rotation: 0, duration: 0.5, ease: "back.out(2.5)" }, 1.9);
+    tl.to("#hk-text", { scale: 1.06, duration: 1.6, ease: "sine.inOut" }, 2.4);
+    window.__timelines["hook"] = tl;
+  </script>
+</template>

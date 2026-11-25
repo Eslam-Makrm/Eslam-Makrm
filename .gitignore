@@ -1,4 +1,9 @@
-codex-video-studio/samples-out/
+video-studio/samples-out/
 __pycache__/
 *.pyc
 node_modules/
+**/videos/*/build/
+**/videos/*/out/
+video-studio/examples/*/build/
+video-studio/examples/*/out/
+.hyperframes/

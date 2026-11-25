@@ -71,4 +71,17 @@ if [ "$SKIP_STORY" = 0 ]; then
     && node render.mjs --frames --workers=4 --soft-gl >/dev/null && node render.mjs --encode --out='$OUT/07-animated-story.mp4' >/dev/null"
 fi
 
+# 9 camera moves + parallax (CPU)
+step "cinematic-camera (parallax dolly-in)" "$OUT/09-parallax.mp4" bash -c "ffmpeg -v error -y -ss 5 -i '$HERE/samples/07-animated-story.mp4' -frames:v 1 '$WORK/still.png' && vs-camera parallax '$WORK/still.png' '$OUT/09-parallax.mp4' --move dolly-in --dur 4 --size 1280x720 >/dev/null"
+# 10 2D lip sync cues (Rhubarb) — checked, not rendered
+echo; echo "=== lip-sync 2D (rhubarb)"
+if echo "مَرْحَبًا بِكُمْ" | "$VS_PY" -m piper -m "$PIPER_VOICES/ar_JO-kareem-medium.onnx" -f "$WORK/l.wav" >/dev/null 2>&1 && vs-lipsync2d "$WORK/l.wav" "$WORK/m.json"; then
+  RESULTS+=("PASS  lip-sync 2D (rhubarb)"); else RESULTS+=("FAIL  lip-sync 2D (rhubarb)"); FAIL=1; fi
+# 11 one-prompt production (video-producer path, CPU route) + QC gate
+cp -R "$HERE/examples/qari-ad-e2e" "$WORK/qari"; rm -rf "$WORK/qari/build" "$WORK/qari/out"
+step "video-producer one-prompt ad (vs-produce + vs-qc)" "$OUT/11-qari-ad.mp4" bash -c "vs-produce '$WORK/qari' --gpu off >/dev/null 2>&1 && cp '$WORK/qari/out/qari-ad.mp4' '$OUT/11-qari-ad.mp4'"
+# 12 cloud GPU backend reachable (no GPU time used)
+echo; echo "=== cloud GPU backend (Kaggle API)"
+if vs-gpu quota; then RESULTS+=("PASS  Kaggle API (quota)"); else RESULTS+=("FAIL  Kaggle API (quota)"); FAIL=1; fi
+
 echo; echo "================ summary"; printf '%s\n' "${RESULTS[@]}"; rm -rf "$WORK"; exit $FAIL

@@ -1,0 +1,22 @@
+<template>
+  <style>
+    #root { position: absolute; inset: 0; background: #ffc857; overflow: hidden; font-family: "Cairo"; }
+    #ec-name { position: absolute; left: 100px; right: 170px; top: 600px; text-align: center; color: #2b3a67; font-size: 210px; font-weight: 1000; }
+    #ec-line { position: absolute; left: 100px; right: 170px; top: 960px; text-align: center; color: #2b3a67; font-size: 76px; font-weight: 800; }
+    #ec-btn { position: absolute; left: 220px; right: 290px; top: 1100px; height: 130px; border-radius: 65px; background: #2b3a67;
+              color: #fff7e8; font-size: 62px; font-weight: 900; display: flex; align-items: center; justify-content: center; }
+  </style>
+  <div id="root" data-composition-id="endcard" data-width="1080" data-height="1920">
+    <h1 id="ec-name" class="clip" data-start="0" data-duration="4" dir="rtl" lang="ar">قارئ</h1>
+    <p id="ec-line" class="clip" data-start="0.6" data-duration="3.4" dir="rtl" lang="ar">أول قصة تبدأ اليوم</p>
+    <div id="ec-btn" class="clip" data-start="1.2" data-duration="2.8" dir="rtl" lang="ar">حمّله مجانًا</div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#ec-name", { scale: 1.5, opacity: 0.2 }, { scale: 1, opacity: 1, duration: 0.6, ease: "expo.out" }, 0);
+    tl.fromTo("#ec-line", { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power3.out" }, 0.6);
+    tl.fromTo("#ec-btn", { scale: 0.6, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.5, ease: "back.out(2)" }, 1.2);
+    tl.to("#ec-btn", { scale: 1.05, duration: 0.6, yoyo: true, repeat: 2, ease: "sine.inOut" }, 1.8);
+    window.__timelines["endcard"] = tl;
+  </script>
+</template>

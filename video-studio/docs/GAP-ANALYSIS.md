@@ -1,5 +1,7 @@
 # Gap analysis and phase-2 plan: from video toolkit to AI production studio
 
+> **Superseded (2026-11-25):** the owner chose Claude as the only agent and no OpenAI/Codex services. Current design and test status: [ARCHITECTURE.md](ARCHITECTURE.md).
+
 Status: **proposal for approval. Nothing new has been installed.** Execution location: see [CLOUD-ARCHITECTURE.md](CLOUD-ARCHITECTURE.md) (cloud-first, chosen 2026-11-25).
 Date: 2026-11-25. Base: branch `claude/codex-video-production-setup-w8gi7m` (15 skills, CPU-only).
 
