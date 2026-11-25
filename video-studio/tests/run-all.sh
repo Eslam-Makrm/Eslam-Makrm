@@ -85,6 +85,10 @@ for t in test_gpu_runtime test_gpu_resubmit test_video_job_mock test_produce_asy
   echo; echo "=== $t"
   if bash "$HERE/tests/$t.sh" | tail -1 | grep -q '^PASS'; then RESULTS+=("PASS  $t"); else RESULTS+=("FAIL  $t"); FAIL=1; fi
 done
+# Wan2.2-TI2V image-to-video wiring on CPU (tiny models); SKIP unless VS_TORCH_PY has torch + diffusers 0.43
+echo; echo "=== test_i2v_tiny"
+r="$(bash "$HERE/tests/test_i2v_tiny.sh" 2>&1 | tail -1)"; echo "$r"
+case "$r" in PASS*) RESULTS+=("PASS  test_i2v_tiny");; SKIP*) RESULTS+=("SKIP  test_i2v_tiny (no VS_TORCH_PY)");; *) RESULTS+=("FAIL  test_i2v_tiny"); FAIL=1;; esac
 # 13 cloud GPU backend reachable (no GPU time used)
 echo; echo "=== cloud GPU backend (Kaggle API)"
 if vs-gpu quota; then RESULTS+=("PASS  Kaggle API (quota)"); else RESULTS+=("FAIL  Kaggle API (quota)"); FAIL=1; fi

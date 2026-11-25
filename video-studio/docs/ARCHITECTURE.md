@@ -60,6 +60,9 @@ T4 = Turing sm75, 14.6 GB, 65 TFLOPS fp16 tensor (14.5 measured on a plain matmu
 | vs-lipsync2d (Arabic Piper line) | **PASS** (34 cues / 4.8 s in 1.4 s) |
 | One-prompt production, CPU route (`samples/08`) | **PASS**: 21.7 s 9:16 Arabic ad, QC PASS (WER 7 %, OCR 1.00 on titles), AI-video shot fell back to keyframe + parallax |
 | `tests/run-all.sh --skip-story` (phase-1 engines + camera, 2D lip sync, one-prompt ad, Kaggle API) | **PASS 10/10** |
+| `tests/run-all.sh --skip-story` rerun 2026-11-25 17:45 UTC (fresh cloud machine, after the installer fix) | **PASS 15/15** — 453 s wall, peak 3.3 GB RAM used, 4 cores |
+| Fresh Arabic reel from SDXL T4 images (`videos/maktaba-reel`, Piper voice, 3 stills + parallax, burned subtitles) | **PASS** — 13.3 s 1080×1920, QC PASS (WER 0 %, −14.0 LUFS, TP −1.5 dBTP), 107 s on CPU, peak 2.9 GB RAM; contact sheet checked by eye |
+| Wan2.2-TI2V image-to-video wiring, CPU with tiny random models (`tests/test_i2v_tiny.sh`) | **FIXED + PASS** — `WanImageToVideoPipeline(**t2v.components)` dropped `expand_timesteps=True`, so every i2v clip would have crashed on GPU after model load (100 vs 48 input channels); now `make_i2v()` passes the config. Real T4 run still **PENDING** (heavy mode) |
 
 ## T4 model plan (reliability first)
 
@@ -99,7 +102,8 @@ The objective is a reliable, repeatable studio on the free tier, not the biggest
 | image.py Z-Image retest | 2026-11-25 `vs-t4-image2` | **NOT RUN** — queued 2 h without a T4; deleted (heavy mode, deprioritised) |
 | video.py text-to-video (Wan2.2-5B, t4-fast 832×480×49 f, 16 steps) | 2026-11-25 `vs-t4-video` | **FAIL** — load 284 s; denoising **7.8 s/step (2 min for 16 steps)**, but the VAE decode took ~62 min (VAE ended up off-GPU under `device_map="balanced"`) and the fp16 output was black; the bf16 rebuild then hit OOM on GPU 1 (first pipeline not freed). 70 GPU-minutes. Fixed in 00e4db8: one T4 with model CPU offload (VAE on GPU, no fp8), NaN latents stop the run at the failing step, hooks removed before the bf16 rebuild; retest **PENDING** |
 | lipsync_musetalk.py first submit | 2026-11-25 17:47 `bench-lipsync` | **NOT RUN** — Kaggle refused it: *"The kernel source must be less than 1 megabytes in size"* (1 MB portrait PNG + WAV inlined as base64). Fixed: `vs-gpu` now re-encodes oversized inputs (PNG→JPEG q92, WAV→FLAC lossless; params renamed to match) — the bench inputs drop from 1.27 MB to 0.32 MB packed; inputs still > 1 MB after that are refused with a hint (split per shot) |
-| video.py image-to-video, lipsync_musetalk.py | — | **PENDING** (queued after the image retest; they need its keyframes) |
+| video.py image-to-video (Wan2.2-5B, `allow_heavy`) | — | **NOT RUN on GPU**; wiring bug found and fixed on CPU (see Integration tests). Run after the light stack passes |
+| lipsync_musetalk.py | — | **PENDING** in the GPU bench chain (presenter portrait from `bench-sdxl`) |
 
 GPU used by all runs so far: 1.57 h of the 30 h weekly quota.
 

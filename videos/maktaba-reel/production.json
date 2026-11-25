@@ -1,0 +1,84 @@
+{
+  "title": "مكتبة الحي — ريلز ١٢ ثانية",
+  "slug": "maktaba-reel",
+  "template": "advert",
+  "prompt": "ريلز قصير بالعربي لمكتبة حي توصّل كتب الأطفال للبيت، من صور SDXL مولّدة على Kaggle T4",
+  "lang": "ar",
+  "format": "reel",
+  "fps": 30,
+  "voice": {
+    "engine": "piper"
+  },
+  "music": {
+    "track": null
+  },
+  "grade": {
+    "look": "warm",
+    "grain": 2,
+    "vignette": true
+  },
+  "subtitles": {
+    "burn": true,
+    "style": "reel"
+  },
+  "shots": [
+    {
+      "id": "s01",
+      "engine": "still",
+      "source": "assets/sdxl-presenter.jpg",
+      "camera": {
+        "move": "dolly-in",
+        "parallax": true,
+        "amount": 0.08
+      },
+      "vo": "هَلْ تَبْحَثُ عَنْ كِتَابٍ جَدِيدٍ لِطِفْلِكَ؟",
+      "transition": "smoothleft",
+      "transition_dur": 0.4
+    },
+    {
+      "id": "s02",
+      "engine": "still",
+      "source": "assets/sdxl-courier.jpg",
+      "camera": {
+        "move": "pan-right",
+        "parallax": true,
+        "amount": 0.1
+      },
+      "vo": "مَكْتَبَةُ الْحَيِّ تُوصِلُ الْكُتُبَ إِلَى بَابِ بَيْتِكَ.",
+      "transition": "fade",
+      "transition_dur": 0.5
+    },
+    {
+      "id": "s03",
+      "engine": "still",
+      "source": "assets/sdxl-kid-reading.jpg",
+      "camera": {
+        "move": "dolly-in",
+        "parallax": true,
+        "amount": 0.08
+      },
+      "vo": "اِقْرَأْ مَعَهُ كُلَّ يَوْمٍ، وَشَاهِدْهُ يَكْبُرُ."
+    }
+  ],
+  "_timeline": [
+    {
+      "id": "s01",
+      "t_mid": 2.23,
+      "onscreen_text": "",
+      "characters": []
+    },
+    {
+      "id": "s02",
+      "t_mid": 6.64,
+      "onscreen_text": "",
+      "characters": []
+    },
+    {
+      "id": "s03",
+      "t_mid": 10.96,
+      "onscreen_text": "",
+      "characters": []
+    }
+  ],
+  "_deliverable": "out/maktaba-reel.mp4"
+}
