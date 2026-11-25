@@ -38,7 +38,7 @@ packed into one private script; outputs are fetched from `www.kaggleusercontent.
 | vs-qc on phase-1 lesson | **PASS** (Arabic WER 8 %, −14.0 LUFS) |
 | vs-lipsync2d (Arabic Piper line) | **PASS** (34 cues / 4.8 s in 1.4 s) |
 | One-prompt production, CPU route (`samples/08`) | **PASS**: 21.7 s 9:16 Arabic ad, QC PASS (WER 7 %, OCR 1.00 on titles), AI-video shot fell back to keyframe + parallax |
-| `tests/run-all.sh --skip-story` | see the commit message of the run |
+| `tests/run-all.sh --skip-story` (phase-1 engines + camera, 2D lip sync, one-prompt ad, Kaggle API) | **PASS 10/10** |
 
 ## Licences (checked on Hugging Face model cards / LICENSE files)
 
@@ -60,7 +60,7 @@ Colab automation (forbidden on the free tier).
 ## Known limits
 
 - Kaggle free tier: 30 GPU-h/week; each job pays ~3–6 min start-up + model download → batch per production.
-- MuseTalk job clones the upstream repo at `main` and runs its weight-download script: pin a commit and
-  review the script at the first GPU run.
+- MuseTalk job is pinned to commit 2536eaf and downloads weights from official Hugging Face itself (upstream
+  script used a third-party mirror and Google Drive); its mmcv/mmpose install is verified at the first GPU run.
 - Chatterbox pins torch 2.6; the job installs it `--no-deps` on Kaggle's newer torch — verify at first run.
 - Claude cannot hear audio: QC uses Whisper WER and loudness; a human listen is still asked for.
