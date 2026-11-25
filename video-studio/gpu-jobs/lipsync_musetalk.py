@@ -72,7 +72,7 @@ def fetch_verified(url, dst):
     — only after the hash matched, so the one non-safe load is of a verified official file."""
     import hashlib, re, torch
     urllib.request.urlretrieve(url, dst)
-    want = re.search(r"-([0-9a-f]{8})\.pth$", url).group(1)
+    want = re.search(r"-([0-9a-f]{8,})\.pth$", url).group(1)   # resnet18-5c106cde, s3fd-619a316812
     got = hashlib.sha256(open(dst, "rb").read()).hexdigest()
     if not got.startswith(want):
         raise RuntimeError(f"hash mismatch for {url}: {got[:8]} != {want}")
