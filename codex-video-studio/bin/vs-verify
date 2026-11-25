@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# vs-verify VIDEO [SHEET.jpg] — prove an MP4 is real: streams, duration, size, motion, audio level, contact sheet.
+set -euo pipefail
+v="${1:?usage: vs-verify video.mp4 [sheet.jpg]}"; sheet="${2:-${v%.*}.sheet.jpg}"
+ffprobe -v error -show_entries stream=codec_type,codec_name,width,height,r_frame_rate,pix_fmt -show_entries format=duration,size -of json "$v" \
+ | python3 -c 'import json,sys;d=json.load(sys.stdin);f=d["format"];print("duration=%.2fs size=%.1fMB"%(float(f["duration"]),int(f["size"])/1e6));[print(" ",s) for s in d["streams"]]'
+dur=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$v")
+# 12-tile contact sheet sampled evenly across the film
+ffmpeg -v error -y -i "$v" -vf "fps=12/${dur},scale=480:-2,tile=4x3:padding=6:color=white" -frames:v 1 "$sheet"
+echo "sheet=$sheet"
+# motion: share of frames whose picture differs from the previous one
+python3 - "$v" <<'PY'
+import subprocess,sys
+out=subprocess.run(["ffmpeg","-v","info","-i",sys.argv[1],"-vf","scale=160:-2,format=gray,signalstats,metadata=print:key=lavfi.signalstats.YDIF","-f","null","-"],capture_output=True,text=True).stderr
+ys=[float(l.split("=")[1]) for l in out.splitlines() if "YDIF=" in l]
+moving=sum(1 for y in ys if y>0.3)
+print("motion: %d/%d frames change (%.0f%%)"%(moving,len(ys),100*moving/max(1,len(ys))))
+PY
+if ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 "$v" | grep -q .; then
+  ffmpeg -v info -i "$v" -af ebur128=framelog=quiet -f null - 2>&1 | grep -E '^\s+I:' | head -1 | sed 's/^ */loudness /'
+else echo "audio: none"; fi

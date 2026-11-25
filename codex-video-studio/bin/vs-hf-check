@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# vs-hf-check [DIR] — run `hyperframes check` and print only errors/warnings (one per line).
+set -uo pipefail
+cd "${1:-.}"
+node "${CODEX_HOME:-$HOME/.codex}/skills/hyperframes/scripts/plugin-cli.mjs" check --json >/dev/null 2>&1
+python3 - <<'PY'
+import json,glob,os,sys
+files=glob.glob('.hyperframes/artifacts/checks/*.json')
+if not files: print("no check report (did the CLI run?)"); sys.exit(1)
+d=json.load(open(max(files,key=os.path.getmtime)))
+seen=set()
+def walk(o):
+    if isinstance(o,dict):
+        if o.get('severity') in ('error','warning'):
+            k=(o['severity'],o.get('code'),o.get('selector'),o.get('message','')[:160])
+            if k not in seen: seen.add(k); print(*k[:3],'|',k[3])
+        for v in o.values(): walk(v)
+    elif isinstance(o,list):
+        for v in o: walk(v)
+walk(d)
+print("errors=%d warnings=%d"%(sum(1 for k in seen if k[0]=='error'),sum(1 for k in seen if k[0]=='warning')))
+PY

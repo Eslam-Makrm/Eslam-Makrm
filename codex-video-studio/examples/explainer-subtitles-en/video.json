@@ -1,0 +1,10 @@
+{
+  "title": "How automatic subtitles work",
+  "theme": "studio",
+  "size": "16:9",
+  "voice": "af_heart",
+  "music": true,
+  "captions": "auto",
+  "defaults": "0.6",
+  "watermark": false
+}

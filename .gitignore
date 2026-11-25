@@ -1,0 +1,4 @@
+codex-video-studio/samples-out/
+__pycache__/
+*.pyc
+node_modules/

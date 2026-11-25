@@ -1,0 +1,6 @@
+duration=20.50s size=1.4MB
+  {'codec_name': 'h264', 'codec_type': 'video', 'width': 1080, 'height': 1920, 'pix_fmt': 'yuv420p', 'r_frame_rate': '30/1'}
+  {'codec_name': 'aac', 'codec_type': 'audio', 'r_frame_rate': '0/0'}
+sheet=03-arabic-reel-subtitled.sheet.jpg
+motion: 177/615 frames change (29%)
+loudness I:         -14.4 LUFS
