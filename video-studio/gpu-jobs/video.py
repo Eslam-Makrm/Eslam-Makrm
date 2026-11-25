@@ -73,6 +73,17 @@ def pre_encode(dtype):
     import gc; gc.collect(); torch.cuda.empty_cache()
 
 
+def make_i2v(t2v):
+    """Image-to-video pipeline sharing t2v's weights. `components` drops config flags, and Wan2.2-TI2V-5B needs
+    expand_timesteps=True (first-frame latent conditioning); without it diffusers takes the Wan2.1 path and the
+    5B transformer crashes on a 100-vs-48-channel input (reproduced on CPU with tiny models, diffusers 0.43)."""
+    if model != "wan22-5b":
+        return None
+    from diffusers import WanImageToVideoPipeline
+    return WanImageToVideoPipeline(**t2v.components, expand_timesteps=t2v.config.expand_timesteps,
+                                   boundary_ratio=t2v.config.boundary_ratio)
+
+
 def build(dtype):
     from diffusers import WanPipeline, WanImageToVideoPipeline, AutoencoderKLWan
     repo, rev = REPOS[model]
@@ -83,15 +94,14 @@ def build(dtype):
                         vae=AutoencoderKLWan.from_pretrained(repo, subfolder="vae", revision=rev,
                                                              torch_dtype=torch.float32), text_encoder=None)
         vae_tiling(t2v)
-        return t2v, (WanImageToVideoPipeline(**t2v.components) if model == "wan22-5b" else None)
+        return t2v, make_i2v(t2v)
     vae = AutoencoderKLWan.from_pretrained(repo, subfolder="vae", revision=rev, torch_dtype=torch.float32)
     # Measured on 2x T4 (balanced + fp8): denoise 7.8 s/step, but the VAE landed off-GPU (decode ~62 min) and
     # fp16 output was black. So: one T4 with model CPU offload (UMT5 encodes, then swaps out; the 5B transformer
     # fits in fp16), VAE on the GPU, no fp8 (fp8 is only needed for >10 GB transformers).
     t2v = load_pipe(WanPipeline, repo, rev, dtype, fp8_ok=False, prefer=PARAMS.get("placement", "offload"), vae=vae)
     vae_tiling(t2v)
-    i2v = WanImageToVideoPipeline(**t2v.components) if model == "wan22-5b" else None
-    return t2v, i2v
+    return t2v, make_i2v(t2v)
 
 
 def snap(v, m):
