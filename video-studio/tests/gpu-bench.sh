@@ -24,13 +24,13 @@ PY
   echo "$n exit=$rc"
 }
 for job in $JOBS; do case $job in
-  tts)   run vs-bench-tts tts_chatterbox.py tts "$B/tts.json" ;;
-  image) run vs-bench-sdxl image.py image "$B/image-sdxl.json" ;;
-  video) run vs-bench-wan13 video.py video "$B/video-wan13.json" ;;
+  tts)   run bench-tts tts_chatterbox.py tts "$B/tts.json" ;;
+  image) run bench-sdxl image.py image "$B/image-sdxl.json" ;;
+  video) run bench-wan13 video.py video "$B/video-wan13.json" ;;
   lipsync)
     if [ -f "$OUT/image/presenter.png" ] && [ -f "$OUT/tts/calm.wav" ]; then
       echo '{"items":[{"id":"talk","video":"presenter.png","audio":"calm.wav"}],"max_job_s":2400}' > "$OUT/lp.json"
-      run vs-bench-lipsync lipsync_musetalk.py lipsync "$OUT/lp.json" "$OUT/image/presenter.png" "$OUT/tts/calm.wav"
+      run bench-lipsync lipsync_musetalk.py lipsync "$OUT/lp.json" "$OUT/image/presenter.png" "$OUT/tts/calm.wav"
     else echo "lipsync skipped: needs image/presenter.png and tts/calm.wav (run image and tts first)"; fi ;;
 esac; done
 for v in "$OUT"/video/*.mp4 "$OUT"/lipsync/*.mp4; do [ -f "$v" ] || continue
