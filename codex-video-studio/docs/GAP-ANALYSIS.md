@@ -1,6 +1,6 @@
 # Gap analysis and phase-2 plan: from video toolkit to AI production studio
 
-Status: **proposal for approval. Nothing new has been installed.**
+Status: **proposal for approval. Nothing new has been installed.** Execution location: see [CLOUD-ARCHITECTURE.md](CLOUD-ARCHITECTURE.md) (cloud-first, chosen 2026-11-25).
 Date: 2026-11-25. Base: branch `claude/codex-video-production-setup-w8gi7m` (15 skills, CPU-only).
 
 ---

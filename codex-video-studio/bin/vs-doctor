@@ -56,7 +56,8 @@ if not fm.get("description","").strip(): print("empty description"); sys.exit(1)
 PY
 }
 find_skill() {  # name -> first dir found
-  for root in "$CODEX_HOME/skills" "$HOME/.agents/skills" "$PWD/.agents/skills" /etc/codex/skills; do
+  local top; top="$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")"
+  for root in "$CODEX_HOME/skills" "$HOME/.agents/skills" "$PWD/.agents/skills" "$top/.agents/skills" /etc/codex/skills; do
     [ -d "$root/$1" ] && { echo "$root/$1"; return; }; done; }
 for n in $EXPECTED; do
   d="$(find_skill "$n")"
