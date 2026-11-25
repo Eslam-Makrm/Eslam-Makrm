@@ -10,6 +10,11 @@ subprocess.run([sys.executable, "-m", "pip", "install", "-q", "s3tokenizer", "co
                 "librosa", "spacy-pkuseg", "pykakasi", "pyloudnorm"], check=True)
 import torch, torchaudio
 from chatterbox.mtl_tts import ChatterboxMultilingualTTS
+# measured: both GPU workers downloading pkuseg's model into ~/.pkuseg at once -> FileExistsError. Fetch it once here.
+try:
+    import spacy_pkuseg; spacy_pkuseg.pkuseg()
+except Exception as e:
+    report(pkuseg_warning=str(e)[:200])
 LINES = shard(PARAMS["lines"])          # 0.5B model: one copy per T4, lines split across both GPUs
 t = time.time(); m = ChatterboxMultilingualTTS.from_pretrained(device="cuda"); report(load_s=round(time.time() - t, 1))
 ref = str(IN / PARAMS["voice"]) if PARAMS.get("voice") else None

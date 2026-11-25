@@ -35,7 +35,10 @@ def build(dtype):
     from diffusers import WanPipeline, WanImageToVideoPipeline, AutoencoderKLWan
     repo, rev = REPOS[model]
     vae = AutoencoderKLWan.from_pretrained(repo, subfolder="vae", revision=rev, torch_dtype=torch.float32)
-    t2v = load_pipe(WanPipeline, repo, rev, dtype, vae=vae)
+    # Measured on 2x T4 (balanced + fp8): denoise 7.8 s/step, but the VAE landed off-GPU (decode ~62 min) and
+    # fp16 output was black. So: one T4 with model CPU offload (UMT5 encodes, then swaps out; the 5B transformer
+    # fits in fp16), VAE on the GPU, no fp8 (fp8 is only needed for >10 GB transformers).
+    t2v = load_pipe(WanPipeline, repo, rev, dtype, fp8_ok=False, prefer=PARAMS.get("placement", "offload"), vae=vae)
     vae_tiling(t2v)
     i2v = WanImageToVideoPipeline(**t2v.components) if model == "wan22-5b" else None
     return t2v, i2v
@@ -57,6 +60,11 @@ def render(pipes, it, dtype):
     kw = dict(prompt=it["prompt"], negative_prompt=it.get("negative", NEG), height=h, width=w, num_frames=f,
               guidance_scale=it.get("cfg", 5.0), num_inference_steps=PARAMS.get("steps", PS),
               generator=torch.Generator("cpu").manual_seed(it.get("seed", 0)))
+    def nan_guard(pipe, step, ts, cb):       # stop early instead of decoding garbage for minutes
+        if not torch.isfinite(cb["latents"]).all():
+            raise FloatingPointError(f"non-finite latents at step {step}")
+        return cb
+    kw["callback_on_step_end"] = nan_guard
     if it.get("image") and i2v is not None:
         frames = i2v(image=load_image(str(IN / it["image"])).resize((w, h)), **kw).frames[0]
     else:
@@ -71,16 +79,23 @@ report(load_s=round(time.time() - t, 1), dtype=str(dtype), model=model, preset=p
 done, redo = [], []
 for it in PARAMS["items"]:
     s = time.time()
-    frames, dims = render(pipes, it, dtype)
+    try:
+        frames, dims = render(pipes, it, dtype)
+    except FloatingPointError as e:
+        redo.append(it); report(clips=done, broken_fp16=[r["id"] for r in redo], nan=str(e)); continue
     if looks_broken(frames[len(frames) // 2]):
         redo.append(it); report(clips=done, broken_fp16=[r["id"] for r in redo]); continue
     export_to_video(frames, str(OUT / f"{it['id']}.mp4"), fps=PARAMS.get("fps", 24))
     done.append({"id": it["id"], "s": round(time.time() - s, 1), "size": f"{dims[0]}x{dims[1]}", "frames": dims[2]})
     report(clips=done)
 if redo and dtype == torch.float16:          # fp16 overflowed on these clips: rebuild once in bf16 (slower, exact)
-    del pipes
+    for p in pipes:
+        if p is not None:
+            try: p.remove_all_hooks()
+            except Exception: pass
+    del pipes, p
     import gc; gc.collect(); torch.cuda.empty_cache()
-    pipes = build(torch.bfloat16)
+    t = time.time(); pipes = build(torch.bfloat16); report(bf16_load_s=round(time.time() - t, 1))
     for it in redo:
         s = time.time()
         frames, dims = render(pipes, it, torch.bfloat16)

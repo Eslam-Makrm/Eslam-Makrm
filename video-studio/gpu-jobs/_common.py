@@ -76,14 +76,14 @@ def shard(items):
     raise _Done()
 
 
-def load_pipe(cls, repo, revision, dtype, fp8_ok=True, **kw):
+def load_pipe(cls, repo, revision, dtype, fp8_ok=True, prefer=None, **kw):
     """Big diffusion models on 2x T4, best strategy first:
        1) device_map='balanced' — text encoder on one T4, transformer + VAE on the other (no CPU round-trips)
        2) fp8 weight storage for the transformer + model CPU offload on one T4
        3) sequential CPU offload (slowest, always fits)
     PARAMS["placement"] = balanced | offload | sequential forces one."""
     import torch
-    force = PARAMS.get("placement")
+    force = prefer or PARAMS.get("placement")
     errors = []
     if (force in (None, "balanced")) and gpu_info().get("n", 0) >= 2:
         try:
@@ -101,7 +101,7 @@ def load_pipe(cls, repo, revision, dtype, fp8_ok=True, **kw):
             pipe = cls.from_pretrained(repo, revision=revision, torch_dtype=dtype, **kw)
             if fp8_ok and gpu_info()["vram_gb"] < 20 and hasattr(pipe, "transformer"):
                 pipe.transformer.enable_layerwise_casting(storage_dtype=torch.float8_e4m3fn, compute_dtype=dtype)
-            pipe.enable_model_cpu_offload()
+            pipe.enable_model_cpu_offload(gpu_id=0)
             report(placement="fp8 transformer + model CPU offload (1 GPU)", placement_errors=errors)
             return pipe
         except Exception as e:
