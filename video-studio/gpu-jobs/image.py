@@ -41,7 +41,7 @@ def gen_sdxl(items):
     vae = AutoencoderKL.from_pretrained("madebyollin/sdxl-vae-fp16-fix", revision="207b116dae70", torch_dtype=torch.float16)
     pipe = StableDiffusionXLPipeline.from_pretrained(MODELS["sdxl"][0], revision=MODELS["sdxl"][1], vae=vae,
                                                      torch_dtype=torch.float16, variant="fp16").to("cuda")
-    pipe.enable_vae_tiling()
+    vae_tiling(pipe)                             # diffusers 0.43: tiling lives on the VAE
     report(load_s=round(time.time() - t, 1), dtype="torch.float16", model="sdxl-base-1.0")
     done = []
     neg = "blurry, lowres, deformed, extra fingers, watermark, text, logo"

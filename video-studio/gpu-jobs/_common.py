@@ -88,7 +88,11 @@ def load_pipe(cls, repo, revision, dtype, fp8_ok=True, **kw):
     if (force in (None, "balanced")) and gpu_info().get("n", 0) >= 2:
         try:
             pipe = cls.from_pretrained(repo, revision=revision, torch_dtype=dtype, device_map="balanced", **kw)
-            report(placement="balanced (2 GPUs)")
+            fp8 = fp8_ok and gpu_info()["vram_gb"] < 20 and hasattr(pipe, "transformer")
+            if fp8:   # measured: Z-Image's 6B transformer alone (12 GB bf16) + attention overflows a 14.6 GB T4
+                pipe.transformer.enable_layerwise_casting(storage_dtype=torch.float8_e4m3fn, compute_dtype=dtype)
+                torch.cuda.empty_cache()
+            report(placement="balanced (2 GPUs)" + (" + fp8 transformer weights" if fp8 else ""))
             return pipe
         except Exception as e:
             errors.append(f"balanced: {type(e).__name__}: {str(e)[:200]}")
