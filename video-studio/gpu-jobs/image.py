@@ -1,9 +1,10 @@
 # GPU job: text-to-image, tuned for Kaggle's 2x Tesla T4 (14.6 GB each, sm75).
-# PARAMS: {"model": "zimage" | "sdxl", "items": [{"id","prompt","negative","width","height","seed"}], "steps": N}
-#   zimage  Z-Image-Turbo 6B (Apache-2.0) — best quality. T4 plan: text encoder on GPU1, transformer on GPU0
-#           (device_map="balanced"); fallback fp8 weights + CPU offload on one GPU. 8 steps.
-#   sdxl    SDXL base 1.0 (OpenRAIL++) + fp16-fix VAE (MIT) — light model: native fp16, ~7 GB, one copy per
-#           T4 so both GPUs work in parallel. 28 steps. Used automatically if Z-Image cannot run.
+# PARAMS: {"model": "sdxl" | "zimage", "items": [{"id","prompt","negative","width","height","seed"}], "steps": N,
+#          "item_budget_s": 240, "max_job_s": 3600}
+#   sdxl    DEFAULT on T4. SDXL base 1.0 (OpenRAIL++) + fp16-fix VAE (MIT): native fp16, ~7 GB, one copy per T4 so
+#           both GPUs work in parallel, 28 steps. Reliable on the free tier.
+#   zimage  ADVANCED (optional). Z-Image-Turbo 6B (Apache-2.0): 12 GB transformer — on T4 it needs both GPUs +
+#           fp8 weights (OOM in bf16, measured). Falls back to SDXL automatically on any failure.
 # Every image is checked for NaN/black output (fp16 overflow) and retried once in a safer mode.
 import os, subprocess, sys
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
@@ -12,7 +13,7 @@ subprocess.run([sys.executable, "-m", "pip", "install", "-q", "diffusers==0.43.0
 import torch
 MODELS = {"zimage": ("Tongyi-MAI/Z-Image-Turbo", "f332072aa78b"),
           "sdxl": ("stabilityai/stable-diffusion-xl-base-1.0", "462165984030")}
-model = PARAMS.get("model", "zimage")
+model = PARAMS.get("model") or ("sdxl" if is_t4() else "zimage")
 
 
 def gen_zimage(items):
@@ -45,15 +46,27 @@ def gen_sdxl(items):
     report(load_s=round(time.time() - t, 1), dtype="torch.float16", model="sdxl-base-1.0")
     done = []
     neg = "blurry, lowres, deformed, extra fingers, watermark, text, logo"
+    steps = PARAMS.get("steps_sdxl", 28)
+    done, failed = [], []
     for it in items:
-        s = time.time()
         w, h = it.get("width", 1344), it.get("height", 768)
         w, h = (1344, 768) if w > h else ((768, 1344) if h > w else (1024, 1024))   # SDXL-native buckets
-        img = pipe(prompt=it["prompt"], negative_prompt=it.get("negative", neg), width=w, height=h,
-                   num_inference_steps=PARAMS.get("steps_sdxl", 28), guidance_scale=6.0,
-                   generator=torch.Generator("cuda").manual_seed(it.get("seed", 0))).images[0]
-        img.save(OUT / f"{it['id']}.png"); done.append({"id": it["id"], "s": round(time.time() - s, 1)})
-        report(images=done)
+        for attempt in range(2):                 # one retry with another seed on NaN/black output
+            s = time.time()
+            try:
+                img = pipe(prompt=it["prompt"], negative_prompt=it.get("negative", neg), width=w, height=h,
+                           num_inference_steps=steps, guidance_scale=6.0,
+                           callback_on_step_end=step_guard(steps, PARAMS.get("item_budget_s", 240), it["id"]),
+                           generator=torch.Generator("cuda").manual_seed(it.get("seed", 0) + attempt)).images[0]
+            except (FloatingPointError, TimeoutError) as e:
+                failed.append({"id": it["id"], "why": str(e)}); break
+            if not looks_broken(img):
+                img.save(OUT / f"{it['id']}.png")
+                done.append({"id": it["id"], "s": round(time.time() - s, 1), "size": f"{w}x{h}", "attempt": attempt + 1})
+                break
+        else:
+            failed.append({"id": it["id"], "why": "black/NaN output twice"})
+        report(images=done, failed=failed)
 
 
 err = None

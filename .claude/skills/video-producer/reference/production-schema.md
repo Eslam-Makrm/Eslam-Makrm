@@ -17,8 +17,9 @@ One file per video, in `videos/<slug>/production.json`. Paths are relative to th
   "music": {"track": null, "volume": 0.18},          // person's track or CC0 only; ducked under the voice
   "grade": {"look": "teal-orange", "grain": 3, "vignette": true},
   "subtitles": {"burn": true, "style": "reel", "keep_tashkeel": false},
-  "gpu": {"accelerator": "NvidiaTeslaT4", "image_model": "zimage",       // zimage | sdxl (light)
-          "video_model": "wan22-5b", "video_preset": "t4"},              // wan21-1.3b (light, text-only) · t4 | t4-fast | hq
+  "gpu": {"accelerator": "NvidiaTeslaT4", "image_model": "sdxl",         // sdxl (T4 default) | zimage (heavy)
+          "video_model": "wan21-1.3b", "video_preset": "t4",             // wan21-1.3b (text-only) | wan22-5b (heavy, i2v)
+          "allow_heavy": false},                                         // false: heavy models are swapped for light ones
   "characters": {
     "omar": {"prompt": "Omar, 28, Egyptian courier, short black hair, trimmed beard, orange jacket with white stripe",
              "refs": ["characters/omar/front.png"]}
@@ -28,7 +29,7 @@ One file per video, in `videos/<slug>/production.json`. Paths are relative to th
       "id": "s01",
       "engine": "ai-video",              // still | clip | ai-image | ai-video
       "prompt": "a courier on a scooter weaves through a busy Cairo street at sunrise, slow tracking shot",
-      "keyframe": null,                  // ai-video: generated first when null (Z-Image), then animated (Wan2.2)
+      "keyframe": null,                  // ai-video: text-to-video (Wan2.1) unless the shot has characters → SDXL keyframe
       "source": null,                    // still: image · clip: mp4 · filled in by the gen stage
       "seed": 7,
       "camera": {"move": "dolly-in", "parallax": true, "amount": 0.1},       // used for stills / fallbacks

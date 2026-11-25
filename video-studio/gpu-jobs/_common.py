@@ -12,6 +12,50 @@ def report(**kw):
     d.update(kw); d["elapsed_s"] = round(time.time() - _T0, 1); p.write_text(json.dumps(d, indent=2))
 
 
+def _vram_peak():           # benchmark: peak VRAM per visible GPU, written at exit of every (child) process
+    try:
+        import torch
+        if torch.cuda.is_available():
+            report(**{"vram_peak_gb": [round(torch.cuda.max_memory_allocated(i) / 2**30, 2)
+                                       for i in range(torch.cuda.device_count())]})
+    except Exception:
+        pass
+
+
+def _watchdog(limit_s):    # hard job budget: never let a stuck job burn GPU quota (Kaggle allows 12 h)
+    import threading
+    def fire():
+        report(error=f"job exceeded its budget of {limit_s} s and was stopped (raise max_job_s only if needed)",
+               timed_out=True)
+        _vram_peak(); os._exit(5)
+    t = threading.Timer(limit_s, fire); t.daemon = True; t.start()
+
+
+import atexit
+atexit.register(_vram_peak)
+if SHARD < 0 and not os.environ.get("VS_FAKE_GPUS"):
+    _watchdog(int(PARAMS.get("max_job_s", 3600)))
+
+
+def step_guard(total_steps, budget_s, label="item"):
+    """diffusers callback_on_step_end: stop on NaN/inf latents and when the projected time of this item exceeds
+    budget_s (early failure detection, measured per step). Raises FloatingPointError / TimeoutError."""
+    t0 = time.time()
+    stats = {"steps": 0, "denoise_s": 0.0}
+    def cb(pipe, step, ts, kw):
+        import torch
+        lat = kw.get("latents")
+        if lat is not None and not torch.isfinite(lat).all():
+            raise FloatingPointError(f"{label}: non-finite latents at step {step}")
+        el = time.time() - t0
+        if step >= 1 and el / (step + 1) * total_steps > budget_s:
+            raise TimeoutError(f"{label}: {el / (step + 1):.1f} s/step x {total_steps} steps > budget {budget_s} s")
+        stats.update(steps=step + 1, denoise_s=round(el, 1))
+        return kw
+    cb.stats = stats
+    return cb
+
+
 def gpu_info():
     if os.environ.get("VS_FAKE_GPUS"):       # CPU self-test of packing and fan-out (tests/test_gpu_runtime.sh)
         return {"n": int(os.environ["VS_FAKE_GPUS"]), "name": "fake", "vram_gb": 14.6, "cc": 7.5}
@@ -71,8 +115,10 @@ def shard(items):
         if f.exists():
             shards.append(json.loads(f.read_text())); f.unlink()
     report(parallel_gpus=n, shards=shards, shard_exit_codes=codes)
-    if any(codes):
-        report(error=f"a GPU worker failed: exit codes {codes}")
+    if codes and all(codes):
+        report(error=f"every GPU worker failed: exit codes {codes}")
+    elif any(codes):                          # partial result: keep what was made, vs-produce falls back for the rest
+        report(warning=f"a GPU worker failed: exit codes {codes}")
     raise _Done()
 
 

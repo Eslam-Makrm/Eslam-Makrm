@@ -1,0 +1,25 @@
+{
+ "lang": "ar",
+ "lines": [
+  {
+   "id": "calm",
+   "text": "فِي صَبَاحٍ هَادِئٍ، فَتَحَتْ لَيْلَى كِتَابَهَا الْأَوَّلَ، وَبَدَأَتْ تَقْرَأُ بِهُدُوءٍ.",
+   "exaggeration": 0.35,
+   "cfg": 0.5
+  },
+  {
+   "id": "excited",
+   "text": "وَاو! لَقَدْ قَرَأَتْ الْقِصَّةَ كُلَّهَا وَحْدَهَا! هَلْ تُصَدِّقُ ذَلِكَ؟",
+   "exaggeration": 0.85,
+   "cfg": 0.3
+  },
+  {
+   "id": "en",
+   "lang": "en",
+   "text": "Every great reader starts with a single page.",
+   "exaggeration": 0.5,
+   "cfg": 0.5
+  }
+ ],
+ "max_job_s": 1500
+}

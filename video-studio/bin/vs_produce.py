@@ -18,6 +18,7 @@ Stages (each resumable; outputs in PROJECT_DIR/build, deliverables in PROJECT_DI
   edit   transitions, narration placement, music ducking, grade, loudness −14 LUFS, subtitles, cover
   qc     vs-qc gate (exit 1 on FAIL)
 """
+import zlib
 import argparse, json, math, os, re, shutil, subprocess, sys, time
 
 VS_HOME = os.environ.get("VS_HOME", os.path.expanduser("~/.video-studio"))
@@ -154,9 +155,21 @@ def job_model(out, default):
 
 def stage_gen(pr, mode):
     shots = pr.p["shots"]
+    g = pr.p.get("gpu", {})
+    # T4 defaults (measured, see docs/ARCHITECTURE.md): SDXL images, Wan2.1-1.3B text-to-video. Heavy models
+    # (Z-Image, Wan2.2-5B image-to-video) only with gpu.allow_heavy.
+    heavy = bool(g.get("allow_heavy"))
+    vmodel = g.get("video_model") or ("wan22-5b" if heavy else "wan21-1.3b")
+    if vmodel == "wan22-5b" and not heavy:
+        log("gen: wan22-5b needs gpu.allow_heavy on T4 — using wan21-1.3b"); vmodel = "wan21-1.3b"
+    t2v_only = vmodel != "wan22-5b"
+
+    def via_t2v(s):        # text-only video model: shots with recurring characters keep keyframe + parallax
+        return not s.get("characters")
+    need_vid = [s for s in shots if s.get("engine") == "ai-video" and not s.get("source")
+                and (not t2v_only or via_t2v(s))]
     need_img = [s for s in shots if s.get("engine") in ("ai-image", "ai-video") and not s.get("source")
-                and not s.get("keyframe")]
-    need_vid = [s for s in shots if s.get("engine") == "ai-video" and not s.get("source")]
+                and not s.get("keyframe") and not (t2v_only and s.get("engine") == "ai-video" and via_t2v(s))]
     if not need_img and not need_vid:
         log("gen: nothing to generate"); return
     ok, why = gpu_ready(mode); log("gen:", why)
@@ -167,15 +180,18 @@ def stage_gen(pr, mode):
         extra = " ".join(chars[c].get("prompt", "") for c in s.get("characters", []) if c in chars)
         style = pr.p.get("style", "")
         return " ".join(x for x in (s["prompt"], extra, style) if x)
-    if need_img and ok:
+    def gen_images(need, name):
         iw, ih = (1280, 720) if W >= H else (720, 1280)
         if W == H:
             iw = ih = 1024
         items = {"items": [{"id": s["id"], "prompt": full_prompt(s), "width": iw, "height": ih,
-                            "seed": s.get("seed", abs(hash(s["id"])) % 10**6)} for s in need_img], "steps": 8}
-        items["model"] = pr.p.get("gpu", {}).get("image_model", "zimage")
-        out = gpu_job(pr, "image.py", items, "images")
-        for s in need_img:
+                            "seed": s.get("seed", zlib.crc32(s["id"].encode()) % 10**6)} for s in need], "steps": 8}
+        imodel = g.get("image_model") or "sdxl"
+        if imodel == "zimage" and not heavy:
+            log("gen: zimage needs gpu.allow_heavy on T4 — using sdxl"); imodel = "sdxl"
+        items["model"] = imodel; items["max_job_s"] = 600 + 120 * len(need)
+        out = gpu_job(pr, "image.py", items, name, timeout=items["max_job_s"] + 900)
+        for s in need:
             f = os.path.join(out or "", f"{s['id']}.png")
             if out and os.path.exists(f):
                 dst = os.path.join(pr.d, "assets", f"{s['id']}.png"); os.makedirs(os.path.dirname(dst), exist_ok=True)
@@ -185,8 +201,10 @@ def stage_gen(pr, mode):
                 if s["engine"] == "ai-image":
                     s["engine"] = "still"
                 pr.note(s["id"], image=f"{job_model(out, 'image')}@kaggle-t4")
+    if need_img and ok:
+        gen_images(need_img, "images")
     if need_vid and ok:
-        g = pr.p.get("gpu", {}); preset = g.get("video_preset", "t4")
+        preset = g.get("video_preset", "t4")
         vw, vh = {"hq": (1280, 704)}.get(preset, (832, 480))
         if H > W:
             vw, vh = vh, vw
@@ -195,20 +213,26 @@ def stage_gen(pr, mode):
         for s in need_vid:
             n = max(1, round((s.get("dur", 3) + 0.5) * 24 / 4)) * 4 + 1
             it = {"id": s["id"], "prompt": full_prompt(s), "frames": min(n, maxf), "width": vw, "height": vh,
-                  "seed": s.get("seed", abs(hash(s["id"])) % 10**6)}
-            if s.get("keyframe"):
+                  "seed": s.get("seed", zlib.crc32(s["id"].encode()) % 10**6)}
+            if s.get("keyframe") and not t2v_only:
                 inputs.append(pr.path(s["keyframe"])); it["image"] = os.path.basename(s["keyframe"])
             items.append(it)
-        vparams = {"items": items, "model": g.get("video_model", "wan22-5b"), "preset": preset, "fps": 24}
+        per = {"t4-fast": 600, "t4": 1200}.get(preset, 3600) * (3 if vmodel == "wan22-5b" else 1)
+        vparams = {"items": items, "model": vmodel, "preset": preset, "fps": 24, "allow_heavy": heavy,
+                   "item_budget_s": per, "max_job_s": 900 + per * len(items)}
         if g.get("video_steps"):
             vparams["steps"] = g["video_steps"]
-        out = gpu_job(pr, "video.py", vparams, "clips", inputs=inputs, timeout=10800,
+        out = gpu_job(pr, "video.py", vparams, "clips", inputs=inputs, timeout=vparams["max_job_s"] + 1200,
                       accel=g.get("video_accelerator", "NvidiaTeslaT4"))
         for s in need_vid:
             f = os.path.join(out or "", f"{s['id']}.mp4")
             if out and os.path.exists(f):
                 dst = os.path.join(pr.d, "assets", f"{s['id']}.mp4"); shutil.copy(f, dst)
                 s["source"] = os.path.relpath(dst, pr.d); pr.note(s["id"], video=f"{job_model(out, 'video')}@kaggle-t4")
+    late = [s for s in need_vid if not s.get("source") and not s.get("keyframe")]
+    if late and ok:          # text-to-video failed for these: make keyframes so the parallax fallback has a picture
+        log("gen: text-to-video failed for", ", ".join(s["id"] for s in late), "- generating keyframes")
+        gen_images(late, "images-fallback")
     # fallbacks — never stop the film for a missing GPU
     for s in shots:
         if s.get("engine") == "ai-video" and not s.get("source"):

@@ -45,8 +45,9 @@ vs-doctor                            # if anything looks missing (install: $VS_R
 
 | Shot need | 1st choice | Fallback (automatic) |
 |---|---|---|
-| Realistic / cinematic motion (people, nature, product in use) | `ai-video`: Wan2.2-TI2V-5B from a keyframe (Kaggle T4, 480p → upscaled) | keyframe + parallax camera move |
-| Keyframe / illustration / product hero | `ai-image`: Z-Image-Turbo (Kaggle T4) → SDXL if Z-Image can't run | needs a source → draw it in code or use the person's image |
+| Realistic / cinematic motion (nature, crowds, B-roll) | `ai-video`: Wan2.1-1.3B text-to-video (Kaggle T4, 480p → upscaled) | SDXL keyframe + parallax camera move |
+| Motion with a recurring character | `ai-video` + `characters`: SDXL keyframe + parallax (default) · Wan2.2-5B image-to-video with `gpu.allow_heavy` | keyframe + parallax |
+| Keyframe / illustration / product hero | `ai-image`: SDXL (Kaggle T4; Z-Image-Turbo with `allow_heavy`) | needs a source → draw it in code or use the person's image |
 | Titles, kinetic type, Arabic text, UI, charts, logos | `clip` from HyperFrames (`arabic-motion-graphics` for RTL) | — |
 | Math / science / diagrams | `clip` from Manim | — |
 | Painted cartoon / kids story | `clip` from `animated-stories` (+ `lip-sync` 2D mouths) | — |

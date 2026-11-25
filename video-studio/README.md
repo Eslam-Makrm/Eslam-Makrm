@@ -12,8 +12,8 @@ social media content, in Arabic and English.
                     │
                     ├─ code-drawn shots on CPU: HyperFrames (motion graphics, Arabic RTL), Manim (lessons),
                     │  p5.brush (painted stories)
-                    ├─ AI shots on Kaggle's free 2× Tesla T4 (vs-gpu, automated, T4-tuned): Z-Image-Turbo
-                    │  (→ SDXL), Wan2.2-TI2V-5B text/image-to-video (→ Wan2.1-1.3B), Chatterbox voice, MuseTalk
+                    ├─ AI shots on Kaggle's free 2× Tesla T4 (vs-gpu, automated, T4-first): SDXL images,
+                    │  Wan2.1-1.3B text-to-video, Chatterbox voice, MuseTalk; heavy modes Z-Image / Wan2.2-5B
                     └─ vs-produce: voice → shots (camera moves, 2.5D parallax) → transitions → grade →
                        music ducking → −14 LUFS → subtitles → cover → vs-qc gate → out/*.mp4
 ```
@@ -21,7 +21,7 @@ social media content, in Arabic and English.
 | Capability | Engine | Runs on | Skill |
 |---|---|---|---|
 | One prompt → finished video | vs-produce + production.json | CPU + Kaggle | `video-producer` |
-| AI images / text-to-video / image-to-video | Z-Image-Turbo → SDXL; Wan2.2-TI2V-5B → Wan2.1-1.3B (Apache-2.0 / OpenRAIL++) | Kaggle 2× T4 | `ai-generation` |
+| AI images / text-to-video / image-to-video | SDXL, Wan2.1-1.3B (defaults); Z-Image-Turbo, Wan2.2-TI2V-5B i2v (optional heavy) | Kaggle 2× T4 | `ai-generation` |
 | Consistent characters | bible + references + image-to-video + DINOv2 check | Kaggle + CPU | `character-bible` |
 | Arabic/English voice with emotion | Chatterbox Multilingual (MIT) · Piper (CPU) · edge-tts (online, opt-in) | Kaggle / CPU | `arabic-voiceover`, `ai-generation` |
 | Lip sync | Rhubarb (2D, CPU) · MuseTalk 1.5 (real faces, GPU) | CPU / Kaggle | `lip-sync` |
@@ -45,8 +45,8 @@ source ~/.video-studio/env.sh && vs-doctor --smoke --gpu
 Cloud GPU: a free Kaggle account, **phone-verified** (Kaggle only grants GPU + internet to verified
 accounts), its API token saved as the environment's network secret for `api.kaggle.com`, and
 `KAGGLE_USERNAME` set. Quota: 30 GPU-hours/week (verified on the account, resets Saturday 00:00 UTC).
-Everything is tuned for the free **2× Tesla T4** (fp16, 2-GPU placement, fp8 fallback, light models);
-nothing depends on L4. Long GPU work: `vs-produce DIR --async` submits and returns; rerun later.
+Everything is tuned for the free **2× Tesla T4**: reliable light models by default, heavy ones opt-in
+(`gpu.allow_heavy`), per-job time budgets and early abort; nothing depends on L4. Benchmark: `tests/gpu-bench.sh`. Long GPU work: `vs-produce DIR --async` submits and returns; rerun later.
 
 ## Use
 

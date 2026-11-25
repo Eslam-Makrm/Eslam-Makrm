@@ -9,9 +9,10 @@
   },
   "gpu": {
     "accelerator": "NvidiaTeslaT4",
-    "image_model": "zimage",
-    "video_model": "wan22-5b",
-    "video_preset": "t4"
+    "image_model": "sdxl",
+    "video_model": "wan21-1.3b",
+    "video_preset": "t4",
+    "allow_heavy": false
   },
   "template": "advert",
   "format": "reel",

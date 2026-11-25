@@ -1,0 +1,1 @@
+{"model":"wan21-1.3b","preset":"t4","items":[{"id":"kite","prompt":"a red kite flying over green hills on a sunny day, clouds drifting, slow pan right, cinematic","seed":3},{"id":"street","prompt":"a young courier rides an orange scooter through a busy Cairo street at sunrise, tracking shot, cinematic","seed":7}],"item_budget_s":1200,"max_job_s":3600}

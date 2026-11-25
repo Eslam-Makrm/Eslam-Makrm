@@ -1,12 +1,15 @@
 # GPU job: text-to-video and image-to-video, tuned for Kaggle's 2x Tesla T4 (14.6 GB each, sm75).
-# PARAMS: {"model": "wan22-5b" | "wan21-1.3b", "preset": "t4" | "t4-fast" | "hq",
+# PARAMS: {"model": "wan21-1.3b" | "wan22-5b", "preset": "t4" | "t4-fast" | "hq", "allow_heavy": false,
+#          "item_budget_s": 1500, "max_job_s": 5400,
 #          "items": [{"id","prompt","image"? (keyframe in IN/ -> image-to-video),"frames","width","height","seed"}],
 #          "steps": N, "fps": 24, "dtype": "auto"|"fp16"|"bf16"}
 #
-#   wan22-5b   Wan2.2-TI2V-5B (Apache-2.0): text- AND image-to-video. T4 plan: UMT5 text encoder on GPU1,
-#              transformer + VAE on GPU0 (device_map="balanced"), fp16 compute (T4 has no native bf16),
-#              VAE tiling; fallback fp8 weights + CPU offload. Black/NaN frames -> that clip is redone in bf16.
-#   wan21-1.3b Wan2.1-T2V-1.3B (Apache-2.0): light text-to-video at 480p, ~3x faster; no image-to-video.
+#   wan21-1.3b DEFAULT on T4. Wan2.1-T2V-1.3B (Apache-2.0): light text-to-video at 480p; text-only.
+#   wan22-5b   ADVANCED (optional, allow_heavy). Wan2.2-TI2V-5B (Apache-2.0): text- AND image-to-video.
+#              Measured on T4 (balanced + fp8): 7.8 s/step, VAE decode off-GPU ~62 min, black fp16 output.
+#   Both: one T4, model CPU offload (UMT5 encodes then swaps out), fp16 compute (T4 has no native bf16),
+#   VAE tiling, per-step guard (NaN latents or projected time > item_budget_s stops the clip early),
+#   clips with NaN are redone once in bf16; hard job budget max_job_s.
 #
 # Presets (per-item width/height/frames override them):
 #   t4       832x480, 81 frames (3.4 s @24), 20 steps  — default on T4; vs-produce upscales to the delivery size
@@ -22,13 +25,16 @@ from diffusers.utils import export_to_video, load_image
 PRESETS = {"t4": (832, 480, 81, 20), "t4-fast": (832, 480, 49, 16), "hq": (1280, 704, 121, 30)}
 REPOS = {"wan22-5b": ("Wan-AI/Wan2.2-TI2V-5B-Diffusers", "b8fff7315c76"),
          "wan21-1.3b": ("Wan-AI/Wan2.1-T2V-1.3B-Diffusers", "0fad780a534b")}
-model = PARAMS.get("model", "wan22-5b")
+model = PARAMS.get("model") or ("wan21-1.3b" if is_t4() else "wan22-5b")
 preset = PARAMS.get("preset", "t4" if is_t4() else "hq")
 PW, PH, PF, PS = PRESETS[preset]
 NEG = "blurry, low quality, distorted face, extra limbs, watermark, text, subtitles, static frame, flicker"
 if model == "wan21-1.3b" and any(it.get("image") for it in PARAMS["items"]):
-    model = "wan22-5b"                       # only the 5B model can animate a keyframe
-    report(note="image-to-video requested: using wan22-5b")
+    if PARAMS.get("allow_heavy"):
+        model = "wan22-5b"                   # only the 5B model can animate a keyframe
+        report(note="image-to-video requested: using wan22-5b (allow_heavy)")
+    else:
+        report(note="wan21-1.3b is text-only: keyframes ignored (set allow_heavy for wan22-5b image-to-video)")
 
 
 def build(dtype):
@@ -48,6 +54,9 @@ def snap(v, m):
     return max(m, int(round(v / m)) * m)
 
 
+LAST = {}
+
+
 def render(pipes, it, dtype):
     t2v, i2v = pipes
     w, h = it.get("width", PW), it.get("height", PH)
@@ -60,33 +69,39 @@ def render(pipes, it, dtype):
     kw = dict(prompt=it["prompt"], negative_prompt=it.get("negative", NEG), height=h, width=w, num_frames=f,
               guidance_scale=it.get("cfg", 5.0), num_inference_steps=PARAMS.get("steps", PS),
               generator=torch.Generator("cpu").manual_seed(it.get("seed", 0)))
-    def nan_guard(pipe, step, ts, cb):       # stop early instead of decoding garbage for minutes
-        if not torch.isfinite(cb["latents"]).all():
-            raise FloatingPointError(f"non-finite latents at step {step}")
-        return cb
-    kw["callback_on_step_end"] = nan_guard
-    if it.get("image") and i2v is not None:
+    g = step_guard(kw["num_inference_steps"], PARAMS.get("item_budget_s", 1500), it["id"])
+    kw["callback_on_step_end"] = g; LAST["guard"] = g
+    if it.get("image") and i2v is not None and model == "wan22-5b":
         frames = i2v(image=load_image(str(IN / it["image"])).resize((w, h)), **kw).frames[0]
     else:
         frames = t2v(**kw).frames[0]
     return frames, (w, h, f)
 
 
+def timing(total):
+    st = LAST["guard"].stats
+    return {"denoise_s": st["denoise_s"], "s_per_step": round(st["denoise_s"] / max(1, st["steps"]), 2),
+            "decode_s": round(total - st["denoise_s"], 1)}
+
+
 t = time.time()
 dtype = pick_dtype(fp16_safe=True)
 pipes = build(dtype)
 report(load_s=round(time.time() - t, 1), dtype=str(dtype), model=model, preset=preset)
-done, redo = [], []
+done, redo, failed = [], [], []
 for it in PARAMS["items"]:
     s = time.time()
     try:
         frames, dims = render(pipes, it, dtype)
     except FloatingPointError as e:
         redo.append(it); report(clips=done, broken_fp16=[r["id"] for r in redo], nan=str(e)); continue
+    except TimeoutError as e:                # too slow for this hardware: give up on this clip, keep quota
+        failed.append({"id": it["id"], "why": str(e)}); report(clips=done, failed=failed); continue
     if looks_broken(frames[len(frames) // 2]):
         redo.append(it); report(clips=done, broken_fp16=[r["id"] for r in redo]); continue
     export_to_video(frames, str(OUT / f"{it['id']}.mp4"), fps=PARAMS.get("fps", 24))
-    done.append({"id": it["id"], "s": round(time.time() - s, 1), "size": f"{dims[0]}x{dims[1]}", "frames": dims[2]})
+    done.append({"id": it["id"], "s": round(time.time() - s, 1), "size": f"{dims[0]}x{dims[1]}", "frames": dims[2],
+                 **timing(time.time() - s)})
     report(clips=done)
 if redo and dtype == torch.float16:          # fp16 overflowed on these clips: rebuild once in bf16 (slower, exact)
     for p in pipes:
@@ -98,6 +113,11 @@ if redo and dtype == torch.float16:          # fp16 overflowed on these clips: r
     t = time.time(); pipes = build(torch.bfloat16); report(bf16_load_s=round(time.time() - t, 1))
     for it in redo:
         s = time.time()
-        frames, dims = render(pipes, it, torch.bfloat16)
+        try:
+            frames, dims = render(pipes, it, torch.bfloat16)
+        except (FloatingPointError, TimeoutError) as e:
+            failed.append({"id": it["id"], "why": "bf16: " + str(e)}); report(failed=failed); continue
         export_to_video(frames, str(OUT / f"{it['id']}.mp4"), fps=PARAMS.get("fps", 24))
-        done.append({"id": it["id"], "s": round(time.time() - s, 1), "dtype": "bf16-retry"}); report(clips=done)
+        done.append({"id": it["id"], "s": round(time.time() - s, 1), "dtype": "bf16-retry", **timing(time.time() - s)}); report(clips=done)
+if not done:
+    report(error="no clip was produced: " + "; ".join(f"{f['id']}: {f['why']}" for f in failed))

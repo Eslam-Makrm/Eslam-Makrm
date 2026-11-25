@@ -59,6 +59,28 @@ T4 = Turing sm75, 14.6 GB, 65 TFLOPS fp16 tensor (14.5 measured on a plain matmu
 | One-prompt production, CPU route (`samples/08`) | **PASS**: 21.7 s 9:16 Arabic ad, QC PASS (WER 7 %, OCR 1.00 on titles), AI-video shot fell back to keyframe + parallax |
 | `tests/run-all.sh --skip-story` (phase-1 engines + camera, 2D lip sync, one-prompt ad, Kaggle API) | **PASS 10/10** |
 
+## T4 model plan (reliability first)
+
+The objective is a reliable, repeatable studio on the free tier, not the biggest model. On 2× Tesla T4
+(14.6 GB each, sm75, no native bf16):
+
+| Need | Default (T4) | Optional heavy mode (`gpu.allow_heavy`) | Automatic fallback |
+|---|---|---|---|
+| Image | SDXL base 1.0 fp16, one copy per T4 | Z-Image-Turbo 6B (2 GPUs + fp8 weights) | SDXL |
+| Text-to-video | Wan2.1-T2V-1.3B, 832×480, 81 f, 20 steps, one T4 + model offload | Wan2.2-TI2V-5B | SDXL keyframe + parallax |
+| Image-to-video (recurring characters) | SDXL keyframe + parallax camera move | Wan2.2-TI2V-5B i2v | — |
+| Voice | Chatterbox Multilingual (one copy per T4) | — | Piper (CPU) |
+| Lip sync | MuseTalk 1.5 fp16 (one T4) | — | voice-over on B-roll |
+
+### T4 fit table: configurations measured NOT to fit (do not resubmit)
+
+| Configuration | Measured on T4 | Status |
+|---|---|---|
+| Z-Image-Turbo bf16 on one T4 (model CPU offload) | OOM in attention, 13.9/14.6 GB | does not fit |
+| Z-Image-Turbo bf16, `device_map="balanced"` over 2 T4 | OOM on GPU 0 (12 GB transformer + 1.46 GB attention) | does not fit |
+| Wan2.2-5B, balanced + fp8, fp16 | denoise OK (7.8 s/step) but VAE decode ~62 min and black frames | unusable; heavy mode now uses one T4 + offload |
+| any preset `hq` (1280×704, 121 f) | not run: projected hours per clip | bigger GPUs only |
+
 ## GPU model tests on Kaggle T4 (actual results)
 
 | Job | Run | Result |
@@ -71,6 +93,10 @@ T4 = Turing sm75, 14.6 GB, 65 TFLOPS fp16 tensor (14.5 measured on a plain matmu
 | video.py image-to-video, lipsync_musetalk.py | — | **PENDING** (queued after the image retest; they need its keyframes) |
 
 GPU used by all runs so far: 1.57 h of the 30 h weekly quota.
+
+Next round (T4-first defaults, running): Chatterbox retest (3 lines, Arabic calm/excited + English), SDXL as
+primary (3 images), Wan2.1-1.3B text-to-video (2 clips, t4 preset), MuseTalk on an SDXL portrait. Reusable as
+`tests/gpu-bench.sh` (writes `bench.jsonl` with time, VRAM peak and quota per job, plus contact sheets).
 
 ### GPU ledger
 <!-- updated by hand from report.json of each run -->
