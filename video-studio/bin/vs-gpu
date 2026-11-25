@@ -84,8 +84,10 @@ def _env_check():  # did Kaggle grant what the job asked for? (GPU + internet ne
     except OSError: net = False
     report(gpu_granted=gpu, internet_granted=net)
     if PARAMS.get("_need_gpu") and not gpu:
-        report(error="Kaggle gave this session no GPU. GPU and internet need a phone-verified Kaggle account "
-                     "(kaggle.com > Settings > Phone verification).")
+        report(error=("Kaggle gave this session no GPU: this accelerator is busy/unavailable or another GPU session "
+                      "is running (free accounts get one at a time); retry later or use NvidiaTeslaT4.") if net else
+                     ("Kaggle gave this session no GPU and no internet: the account needs phone verification "
+                      "(kaggle.com > Settings > Phone verification)."), gpu_unavailable_reason="busy" if net else "unverified")
         raise SystemExit(3)
     if PARAMS.get("_need_internet") and not net:
         report(error="Kaggle gave this session no internet (phone verification needed, or internet off).")
@@ -217,7 +219,8 @@ def main():
         fetch(ref, a.out)
         rep = os.path.join(a.out, "report.json")
         r = json.load(open(rep)) if os.path.exists(rep) else {}
-        if "gpu_granted" in r and a.accelerator.lower() != "none":   # remember whether Kaggle grants a GPU
+        if "gpu_granted" in r and a.accelerator.lower() != "none" and (r["gpu_granted"] or not r.get("internet_granted")):
+            # remember whether the ACCOUNT can get a GPU (a busy accelerator is not an account problem)
             json.dump({"granted": r["gpu_granted"], "internet": r.get("internet_granted"), "t": time.time()},
                       open(os.path.join(os.path.dirname(LEDGER), "gpu-status.json"), "w"))
         if r.get("error"):

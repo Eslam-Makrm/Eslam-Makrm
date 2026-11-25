@@ -32,7 +32,8 @@ packed into one private script; outputs are fetched from `www.kaggleusercontent.
 | `vs-doctor --smoke --gpu` | **PASS** 50 / FAIL 1 (the Kaggle GPU grant, below) |
 | Kaggle API auth via proxy, quota | **PASS**: 30 h GPU + 20 h TPU per week, refresh Sat 00:00 UTC |
 | Kaggle job submit → run → status → download | **PASS** (probe kernel, 46 s round trip) |
-| Kaggle grants GPU + internet to the job | **BLOCKED**: account not phone-verified; job ran on CPU with no internet. Detected and reported automatically |
+| Kaggle grants GPU + internet to the job | **PASS** after the owner's phone verification: 2× Tesla T4 (14.6 GB each), 14.5 fp16 TFLOPS, torch 2.11+cu130, HF downloads 92 MB/s, 31 GB RAM, 19.5 GB disk. Before verification jobs ran on CPU without internet — detected and reported automatically |
+| Parallel GPU sessions | one at a time on the free account (a second job, on L4, got no GPU while a T4 job ran) → jobs are run sequentially |
 | Z-Image / Wan2.2 / Chatterbox / MuseTalk jobs on GPU | **NOT YET RUN** (blocked by the line above) |
 | vs-camera move / parallax / grade | **PASS** (4 s 720p parallax in ~4 s on 4 cores; frames checked by eye) |
 | vs-qc on phase-1 lesson | **PASS** (Arabic WER 8 %, −14.0 LUFS) |

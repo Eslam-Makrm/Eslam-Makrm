@@ -155,7 +155,8 @@ def stage_gen(pr, mode):
                 inputs.append(pr.path(s["keyframe"])); it["image"] = os.path.basename(s["keyframe"])
             items.append(it)
         out = gpu_job(pr, "video_wan22.py", {"items": items, "steps": pr.p.get("gpu", {}).get("video_steps", 30), "fps": 24},
-                      "clips", inputs=inputs, timeout=10800)
+                      "clips", inputs=inputs, timeout=10800,
+                      accel=pr.p.get("gpu", {}).get("video_accelerator", "NvidiaL4"))
         for s in need_vid:
             f = os.path.join(out or "", f"{s['id']}.mp4")
             if out and os.path.exists(f):

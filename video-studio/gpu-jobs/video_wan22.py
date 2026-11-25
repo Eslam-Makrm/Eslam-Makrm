@@ -3,7 +3,9 @@
 #          "frames":121,"width":1280,"height":704,"seed":7}], "steps":30, "fps":24}
 # Frames must be 4k+1; 720p sizes 1280x704 / 704x1280. Camera language goes in the prompt
 # ("slow dolly-in", "orbit left", "handheld"); the editor adds moves in post when the model's are weak.
-import subprocess, sys, torch
+import os, subprocess, sys
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+import torch
 REV = "b8fff7315c76"
 subprocess.run([sys.executable, "-m", "pip", "install", "-q", "diffusers==0.43.0", "accelerate", "transformers", "ftfy", "imageio-ffmpeg"], check=True)
 from diffusers import WanImageToVideoPipeline, WanPipeline, AutoencoderKLWan
@@ -14,8 +16,13 @@ repo = "Wan-AI/Wan2.2-TI2V-5B-Diffusers"
 vae = AutoencoderKLWan.from_pretrained(repo, subfolder="vae", revision=REV, torch_dtype=torch.float32)
 t2v = WanPipeline.from_pretrained(repo, vae=vae, revision=REV, torch_dtype=dtype)
 i2v = WanImageToVideoPipeline(**t2v.components)          # same weights, image-conditioned
+VRAM = torch.cuda.get_device_properties(0).total_memory / 2**30
+if VRAM < 20:   # T4: fp8 weight storage for the 5B transformer
+    t2v.transformer.enable_layerwise_casting(storage_dtype=torch.float8_e4m3fn, compute_dtype=dtype)
 for p in (t2v, i2v): p.enable_model_cpu_offload()
-report(load_s=round(time.time() - t, 1), dtype=str(dtype))
+try: vae.enable_tiling()
+except Exception: pass
+report(load_s=round(time.time() - t, 1), dtype=str(dtype), vram_gb=round(VRAM, 1), gpu=torch.cuda.get_device_name(0))
 NEG = "blurry, low quality, distorted face, extra limbs, watermark, text, subtitles, static frame"
 done = []
 for it in PARAMS["items"]:
