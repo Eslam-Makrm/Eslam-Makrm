@@ -37,10 +37,13 @@ if SHARD < 0 and not os.environ.get("VS_FAKE_GPUS"):
     _watchdog(int(PARAMS.get("max_job_s", 3600)))
 
 
-def step_guard(total_steps, budget_s, label="item"):
+def step_guard(total_steps, budget_s, label="item", weights=None):
     """diffusers callback_on_step_end: stop on NaN/inf latents and when the projected time of this item exceeds
-    budget_s (early failure detection, measured per step). Raises FloatingPointError / TimeoutError."""
+    budget_s (early failure detection, measured per step). weights = relative cost per step (2 with CFG, 1
+    without) so the projection stays right when CFG is switched off part-way. Raises FloatingPointError /
+    TimeoutError."""
     t0 = time.time()
+    w = list(weights or [1] * total_steps)
     stats = {"steps": 0, "denoise_s": 0.0}
     def cb(pipe, step, ts, kw):
         import torch
@@ -48,8 +51,9 @@ def step_guard(total_steps, budget_s, label="item"):
         if lat is not None and not torch.isfinite(lat).all():
             raise FloatingPointError(f"{label}: non-finite latents at step {step}")
         el = time.time() - t0
-        if step >= 1 and el / (step + 1) * total_steps > budget_s:
-            raise TimeoutError(f"{label}: {el / (step + 1):.1f} s/step x {total_steps} steps > budget {budget_s} s")
+        proj = el / sum(w[:step + 1]) * sum(w)
+        if step >= 1 and proj > budget_s:
+            raise TimeoutError(f"{label}: {el / (step + 1):.1f} s/step, projected {proj:.0f} s > budget {budget_s} s")
         stats.update(steps=step + 1, denoise_s=round(el, 1))
         return kw
     cb.stats = stats
