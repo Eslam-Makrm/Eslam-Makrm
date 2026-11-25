@@ -1,0 +1,5 @@
+duration=8.00s size=8.0MB
+  {'codec_name': 'h264', 'codec_type': 'video', 'width': 1920, 'height': 1080, 'pix_fmt': 'yuv420p', 'r_frame_rate': '24/1'}
+sheet=codex-video-studio/samples/07-animated-story.sheet.jpg
+motion: 166/192 frames change (86%)
+audio: none
