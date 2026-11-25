@@ -64,7 +64,32 @@ try:
     hf_hub_download("ManyOtherFunctions/face-parse-bisent", "79999_iter.pth", local_dir=f"{M}/face-parse-bisent")
 except Exception as e:
     report(face_parse_warning=f"BiSeNet weights not found on HF ({e}); review a source before production use")
-urllib.request.urlretrieve("https://download.pytorch.org/models/resnet18-5c106cde.pth", f"{M}/face-parse-bisent/resnet18-5c106cde.pth")
+
+
+def fetch_verified(url, dst):
+    """Download an official torch-hub style file (name ends in the first 8 hex of its sha256), check the hash, and
+    if it is in PyTorch's legacy .tar format (refused by torch>=2.6's safe loader) re-save it in the current format
+    — only after the hash matched, so the one non-safe load is of a verified official file."""
+    import hashlib, re, torch
+    urllib.request.urlretrieve(url, dst)
+    want = re.search(r"-([0-9a-f]{8})\.pth$", url).group(1)
+    got = hashlib.sha256(open(dst, "rb").read()).hexdigest()
+    if not got.startswith(want):
+        raise RuntimeError(f"hash mismatch for {url}: {got[:8]} != {want}")
+    try:
+        torch.load(dst, map_location="cpu", weights_only=True)
+    except RuntimeError as e:
+        if "legacy .tar format" not in str(e):
+            raise
+        torch.save(torch.load(dst, map_location="cpu", weights_only=False), dst)
+        report(**{f"converted_{os.path.basename(dst)}": "legacy .tar -> current format (sha256 verified first)"})
+
+
+# BiSeNet's backbone: torchvision's ResNet-18 ImageNet weights (official, BSD-3); MuseTalk expects this file name
+fetch_verified("https://download.pytorch.org/models/resnet18-5c106cde.pth", f"{M}/face-parse-bisent/resnet18-5c106cde.pth")
+# S3FD face detector (face-alignment, BSD-3): fetched here so it is verified, not downloaded at import time
+fetch_verified("https://www.adrianbulat.com/downloads/python-fan/s3fd-619a316812.pth",
+               f"{W}/musetalk/utils/face_detection/detection/sfd/s3fd.pth")
 import yaml
 cfg = {it["id"]: {"video_path": str(IN / it["video"]), "audio_path": str(IN / it["audio"])} for it in PARAMS["items"]}
 open(f"{W}/vs_task.yaml", "w").write(yaml.safe_dump(cfg))
