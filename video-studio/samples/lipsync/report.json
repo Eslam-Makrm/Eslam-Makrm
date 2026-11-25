@@ -1,0 +1,22 @@
+{
+  "gpu_granted": true,
+  "internet_granted": true,
+  "elapsed_s": 187.0,
+  "gpu": {
+    "n": 2,
+    "name": "Tesla T4",
+    "vram_gb": 14.6,
+    "cc": 7.5
+  },
+  "converted_resnet18-5c106cde.pth": "legacy .tar -> current format (sha256 verified first)",
+  "lipsync_s": 140.4,
+  "outputs": [
+    "v15/presenter_calm.mp4"
+  ],
+  "musetalk_ref": "2536eaf06b85f775d8e04b7fd81bf6699155a58d",
+  "face_crop": "S3FD face box (DWPose landmarks unavailable on this image)",
+  "vram_peak_gb": [
+    0.0,
+    0.0
+  ]
+}
