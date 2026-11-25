@@ -65,10 +65,12 @@ T4 = Turing sm75, 14.6 GB, 65 TFLOPS fp16 tensor (14.5 measured on a plain matmu
 |---|---|---|
 | probe | 2026-11-25 | **PASS** — 2× T4, 14.5 fp16 TFLOPS, 92 MB/s HF download |
 | Z-Image-Turbo, single T4, bf16, model CPU offload (first version) | 2026-11-25 | **FAIL** — loaded in 246 s, then CUDA out of memory in attention (13.9 of 14.6 GB used). Led to the balanced 2-GPU placement, fp8 fallback and SDXL fallback |
-| image.py v2 (Z-Image over 2× T4 → SDXL fallback) | submitted 2026-11-25 as `vs-t4-image` | see the GPU ledger below |
-| video.py (Wan2.2-5B t4 preset / Wan2.1-1.3B) | — | **PENDING** (not yet run; one batch job at a time) |
-| tts_chatterbox.py (Arabic, emotion 0.35 / 0.85, English) | — | **PENDING** |
-| lipsync_musetalk.py | — | **PENDING** |
+| image.py v2 (Z-Image balanced over 2× T4 → SDXL fallback) | 2026-11-25 `vs-t4-image` | **FAIL** — load 267 s; Z-Image OOM on GPU 0 (12 GB transformer + 1.46 GB attention); SDXL fallback crashed (`enable_vae_tiling` removed in diffusers 0.43). Fixed in 61049c8 (fp8 transformer weights in balanced mode, `vae_tiling()`); retest `vs-t4-image2` **PENDING** |
+| tts_chatterbox.py (2 lines over 2× T4) | 2026-11-25 `vs-t4-tts` | **PARTIAL** — `excited` line generated (model load 39 s, 20.4 s per line, 1.5 min job); the other worker crashed: both downloaded pkuseg's model into `~/.pkuseg` at once (`FileExistsError`). Fixed in 00e4db8 (fetched once before fan-out); retest **PENDING** |
+| video.py text-to-video (Wan2.2-5B, t4-fast 832×480×49 f, 16 steps) | 2026-11-25 `vs-t4-video` | **FAIL** — load 284 s; denoising **7.8 s/step (2 min for 16 steps)**, but the VAE decode took ~62 min (VAE ended up off-GPU under `device_map="balanced"`) and the fp16 output was black; the bf16 rebuild then hit OOM on GPU 1 (first pipeline not freed). 70 GPU-minutes. Fixed in 00e4db8: one T4 with model CPU offload (VAE on GPU, no fp8), NaN latents stop the run at the failing step, hooks removed before the bf16 rebuild; retest **PENDING** |
+| video.py image-to-video, lipsync_musetalk.py | — | **PENDING** (queued after the image retest; they need its keyframes) |
+
+GPU used by all runs so far: 1.57 h of the 30 h weekly quota.
 
 ### GPU ledger
 <!-- updated by hand from report.json of each run -->
