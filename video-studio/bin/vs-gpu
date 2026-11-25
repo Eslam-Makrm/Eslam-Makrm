@@ -1,0 +1,231 @@
+#!/usr/bin/env python3
+"""vs-gpu — run studio GPU jobs on Kaggle's free GPUs, fully automated (no browser, no clicks).
+
+  vs-gpu quota                                  GPU/TPU hours used and left this week
+  vs-gpu run JOB.py OUT_DIR [options]           submit + wait + download outputs (the normal call)
+  vs-gpu submit JOB.py [options]                push and start; prints the kernel ref
+  vs-gpu status REF                             queued / running / complete / error
+  vs-gpu wait REF [--timeout S]                 poll until done
+  vs-gpu fetch REF OUT_DIR                      download /kaggle/working/out/* and the log
+
+Options for run/submit:
+  --name NAME            kernel slug suffix (default: the job file's name) -> USER/vs-NAME
+  --accelerator ACC      NvidiaTeslaT4 (default, 2x T4 16 GB) | NvidiaL4 (24 GB) | none (CPU)
+  --params JSON          dict passed to the job as PARAMS (or @file.json)
+  --input PATH           file to ship with the job (repeatable); appears in /kaggle/working/in/
+  --timeout S            max run time in seconds (default 3600)
+  --no-internet          run offline (jobs that download models need internet)
+
+How it works: the job script, its PARAMS and its inputs (base64, ≤ 25 MB in total) are packed into one
+private Kaggle *script* kernel. Kaggle runs it on the chosen accelerator; the job writes its results to
+/kaggle/working/out/. Authentication: the Kaggle API token is a network secret that the HTTPS proxy
+injects for api.kaggle.com, so this tool only ever sends a placeholder. Username: KAGGLE_USERNAME.
+"""
+import argparse, base64, json, os, re, sys, time, urllib.error, urllib.request
+
+API = "https://api.kaggle.com/v1"
+TOKEN = os.environ.get("KAGGLE_API_TOKEN") or "proxy-injected"
+USER = os.environ.get("KAGGLE_USERNAME", "")
+LEDGER = os.path.join(os.environ.get("VS_HOME", os.path.expanduser("~/.video-studio")), "gpu-ledger.jsonl")
+MAX_INPUT = 25 * 2**20
+
+
+def call(service, method, body, timeout=120):
+    req = urllib.request.Request(f"{API}/{service}/{method}", data=json.dumps(body).encode(), method="POST",
+                                 headers={"Content-Type": "application/json", "Authorization": f"Bearer {TOKEN}"})
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return json.loads(r.read() or b"{}")
+        except urllib.error.HTTPError as e:
+            msg = e.read()[:300].decode("utf-8", "replace")
+            if e.code in (429, 500, 502, 503, 504) and attempt < 3:
+                time.sleep(5 * 2 ** attempt); continue
+            sys.exit(f"Kaggle API {method}: HTTP {e.code} {msg}")
+        except urllib.error.URLError as e:
+            if attempt < 3:
+                time.sleep(5 * 2 ** attempt); continue
+            sys.exit(f"Kaggle API {method}: {e}")
+
+
+def secs(v):
+    return float(str(v or "0s").rstrip("s") or 0)
+
+
+def quota():
+    q = call("kernels.KernelsApiService", "GetAcceleratorQuotaStatistics", {})
+    g = q.get("gpuQuota", {})
+    used, total = secs(g.get("timeUsed")), secs(g.get("totalTimeAllowed"))
+    return {"gpu_used_h": round(used / 3600, 2), "gpu_total_h": round(total / 3600, 2),
+            "gpu_left_h": round((total - used - secs(g.get("timeReserved"))) / 3600, 2),
+            "refresh": q.get("quotaRefreshTime")}
+
+
+def need_user():
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", USER or ""):
+        sys.exit("set KAGGLE_USERNAME (your kaggle.com/<username>)")
+
+
+BOOT = r'''# --- packed by vs-gpu: inputs and params ---
+import base64, json, os, pathlib, time
+_T0 = time.time()
+IN = pathlib.Path("/kaggle/working/in"); OUT = pathlib.Path("/kaggle/working/out")
+IN.mkdir(parents=True, exist_ok=True); OUT.mkdir(parents=True, exist_ok=True)
+PARAMS = json.loads(%(params)r)
+for _n, _b in json.loads(%(inputs)r).items():
+    (IN / _n).write_bytes(base64.b64decode(_b))
+def report(**kw):  # jobs call report(...) to add facts to out/report.json
+    p = OUT / "report.json"; d = json.loads(p.read_text()) if p.exists() else {}
+    d.update(kw); d["elapsed_s"] = round(time.time() - _T0, 1); p.write_text(json.dumps(d, indent=2))
+def _env_check():  # did Kaggle grant what the job asked for? (GPU + internet need a phone-verified account)
+    import shutil as _sh, socket as _so, subprocess as _sp
+    gpu = bool(_sh.which("nvidia-smi")) and _sp.run(["nvidia-smi", "-L"], capture_output=True).returncode == 0
+    try: _so.getaddrinfo("huggingface.co", 443); net = True
+    except OSError: net = False
+    report(gpu_granted=gpu, internet_granted=net)
+    if PARAMS.get("_need_gpu") and not gpu:
+        report(error="Kaggle gave this session no GPU. GPU and internet need a phone-verified Kaggle account "
+                     "(kaggle.com > Settings > Phone verification).")
+        raise SystemExit(3)
+    if PARAMS.get("_need_internet") and not net:
+        report(error="Kaggle gave this session no internet (phone verification needed, or internet off).")
+        raise SystemExit(3)
+_env_check()
+# --- job ---
+'''
+
+
+def pack(job, params, inputs):
+    blobs, total = {}, 0
+    for p in inputs:
+        b = open(p, "rb").read(); total += len(b)
+        if total > MAX_INPUT:
+            sys.exit(f"inputs exceed {MAX_INPUT >> 20} MB; downscale them or split the job")
+        blobs[os.path.basename(p)] = base64.b64encode(b).decode()
+    return BOOT % {"params": json.dumps(params), "inputs": json.dumps(blobs)} + open(job, encoding="utf-8").read()
+
+
+def submit(a):
+    need_user()
+    name = re.sub(r"[^a-z0-9-]+", "-", (a.name or os.path.splitext(os.path.basename(a.job))[0]).lower()).strip("-")
+    slug = f"vs-{name}"[:50]
+    params = a.params or "{}"
+    params = json.load(open(params[1:])) if params.startswith("@") else json.loads(params)
+    gpu = a.accelerator.lower() != "none"
+    params.setdefault("_need_gpu", gpu); params.setdefault("_need_internet", not a.no_internet)
+    body = {"slug": f"{USER}/{slug}", "newTitle": slug, "text": pack(a.job, params, a.input or []),
+            "language": "python", "kernelType": "script", "isPrivate": True,
+            "enableGpu": gpu, "enableInternet": not a.no_internet, "sessionTimeoutSeconds": a.timeout}
+    if gpu:
+        body["machineShape"] = a.accelerator
+    r = call("kernels.KernelsApiService", "SaveKernel", body, timeout=300)
+    if r.get("error"):
+        sys.exit(f"Kaggle refused the job: {r['error']}")
+    ref = r.get("ref", f"/code/{USER}/{slug}").split("/code/")[-1].strip("/")
+    rec = {"ref": ref, "version": r.get("versionNumber"), "accelerator": a.accelerator, "job": os.path.basename(a.job),
+           "submitted": time.time()}
+    os.makedirs(os.path.dirname(LEDGER), exist_ok=True)
+    open(LEDGER, "a").write(json.dumps(rec) + "\n")
+    print(f"submitted {ref} v{r.get('versionNumber')} on {a.accelerator}", file=sys.stderr)
+    return ref
+
+
+def split(ref):
+    u, s = ref.split("/")[-2:]
+    return u, s
+
+
+def status(ref):
+    u, s = split(ref)
+    r = call("kernels.KernelsApiService", "GetKernelSessionStatus", {"userName": u, "kernelSlug": s})
+    st = str(r.get("status", "")).lower().replace("kernel_worker_status_", "")
+    return st, r.get("failureMessage") or ""
+
+
+def wait(ref, timeout):
+    t0 = time.time(); last = None
+    while True:
+        st, msg = status(ref)
+        if st != last:
+            print(f"  {int(time.time() - t0):5d}s  {st}", file=sys.stderr); last = st
+        if st in ("complete",):
+            return True
+        if st in ("error", "cancel_requested", "cancel_acknowledged", "cancelled"):
+            print(f"job failed: {msg}", file=sys.stderr); return False
+        if time.time() - t0 > timeout:
+            print("timed out waiting (the job keeps running on Kaggle; `vs-gpu wait` again later)", file=sys.stderr)
+            return False
+        time.sleep(15 if time.time() - t0 < 120 else 30)
+
+
+def fetch(ref, out):
+    u, s = split(ref); os.makedirs(out, exist_ok=True); n = 0; token = ""
+    while True:
+        r = call("kernels.KernelsApiService", "ListKernelSessionOutput",
+                 {"userName": u, "kernelSlug": s, "pageSize": 200, "pageToken": token})
+        if r.get("log"):
+            open(os.path.join(out, "kaggle.log"), "w", encoding="utf-8").write(r["log"])
+        for f in r.get("files", []):
+            name = f["fileName"]
+            if name.startswith("out/"):
+                name = name[4:]
+            elif name.startswith("in/"):
+                continue
+            dst = os.path.join(out, name); os.makedirs(os.path.dirname(dst) or out, exist_ok=True)
+            with urllib.request.urlopen(f["url"], timeout=600) as src, open(dst, "wb") as fh:
+                while (b := src.read(1 << 20)):
+                    fh.write(b)
+            n += 1
+        token = r.get("nextPageToken")
+        if not token:
+            break
+    print(f"fetched {n} files into {out}", file=sys.stderr)
+    return n
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("quota")
+    for c in ("run", "submit"):
+        p = sub.add_parser(c); p.add_argument("job")
+        if c == "run":
+            p.add_argument("out")
+        p.add_argument("--name"); p.add_argument("--accelerator", default="NvidiaTeslaT4")
+        p.add_argument("--params"); p.add_argument("--input", action="append")
+        p.add_argument("--timeout", type=int, default=3600); p.add_argument("--no-internet", action="store_true")
+    p = sub.add_parser("status"); p.add_argument("ref")
+    p = sub.add_parser("wait"); p.add_argument("ref"); p.add_argument("--timeout", type=int, default=7200)
+    p = sub.add_parser("fetch"); p.add_argument("ref"); p.add_argument("out")
+    a = ap.parse_args()
+    if a.cmd == "quota":
+        print(json.dumps(quota()))
+    elif a.cmd == "submit":
+        print(submit(a))
+    elif a.cmd == "status":
+        print(*status(a.ref))
+    elif a.cmd == "wait":
+        sys.exit(0 if wait(a.ref, a.timeout) else 1)
+    elif a.cmd == "fetch":
+        fetch(a.ref, a.out)
+    elif a.cmd == "run":
+        q = quota()
+        if a.accelerator.lower() != "none" and q["gpu_left_h"] < 0.25:
+            sys.exit(f"Kaggle GPU quota nearly used up ({q}); it refreshes {q['refresh']}")
+        ref = submit(a); t0 = time.time()
+        ok = wait(ref, a.timeout + 1800)
+        fetch(ref, a.out)
+        rep = os.path.join(a.out, "report.json")
+        r = json.load(open(rep)) if os.path.exists(rep) else {}
+        if "gpu_granted" in r and a.accelerator.lower() != "none":   # remember whether Kaggle grants a GPU
+            json.dump({"granted": r["gpu_granted"], "internet": r.get("internet_granted"), "t": time.time()},
+                      open(os.path.join(os.path.dirname(LEDGER), "gpu-status.json"), "w"))
+        if r.get("error"):
+            ok = False; print(f"JOB ERROR: {r['error']}", file=sys.stderr)
+        print(json.dumps({"ref": ref, "ok": ok, "wall_s": round(time.time() - t0), "out": a.out,
+                          "report": json.load(open(rep)) if os.path.exists(rep) else None}, indent=2))
+        sys.exit(0 if ok else 1)
+
+
+if __name__ == "__main__":
+    main()

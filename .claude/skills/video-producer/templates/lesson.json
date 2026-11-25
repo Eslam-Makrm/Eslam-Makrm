@@ -1,0 +1,37 @@
+{
+  "title": "",
+  "slug": "lesson-video",
+  "lang": "ar",
+  "fps": 30,
+  "music": {
+    "track": null,
+    "volume": 0.18
+  },
+  "gpu": {
+    "accelerator": "NvidiaTeslaT4",
+    "video_steps": 30
+  },
+  "template": "lesson",
+  "format": "youtube",
+  "style": "clean educational illustration, flat colours, high contrast",
+  "voice": {
+    "engine": "piper"
+  },
+  "grade": {},
+  "subtitles": {
+    "burn": true,
+    "style": "clean",
+    "keep_tashkeel": true
+  },
+  "_notes": "60-180 s. Question hook, concept in 3-5 steps (Manim or HyperFrames clips), worked example, recap card. Calm emotion 0.3-0.45. Chatterbox if expressive narration is wanted.",
+  "shots": [
+    {
+      "id": "s01",
+      "engine": "clip",
+      "source": "assets/s01.mp4",
+      "vo": "",
+      "dur": 4,
+      "transition": "fade"
+    }
+  ]
+}

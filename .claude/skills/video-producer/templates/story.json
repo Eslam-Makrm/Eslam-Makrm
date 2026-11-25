@@ -1,0 +1,48 @@
+{
+  "title": "",
+  "slug": "story-video",
+  "lang": "ar",
+  "fps": 30,
+  "music": {
+    "track": null,
+    "volume": 0.18
+  },
+  "gpu": {
+    "accelerator": "NvidiaTeslaT4",
+    "video_steps": 30
+  },
+  "template": "story",
+  "format": "youtube",
+  "style": "storybook illustration, soft watercolour, warm palette, consistent character design",
+  "voice": {
+    "engine": "chatterbox"
+  },
+  "grade": {
+    "look": "warm",
+    "grain": 2,
+    "vignette": true
+  },
+  "subtitles": {
+    "burn": true,
+    "style": "clean",
+    "keep_tashkeel": true
+  },
+  "_notes": "45-120 s. Setup, wish, obstacle, turn, ending + moral. Painted kit clips (animated-stories) or ai-image stills with parallax; recurring characters via character-bible. Emotion follows the arc 0.35 -> 0.8 -> 0.4.",
+  "characters": {},
+  "shots": [
+    {
+      "id": "s01",
+      "engine": "ai-image",
+      "prompt": "",
+      "vo": "",
+      "emotion": 0.4,
+      "dur": 4,
+      "camera": {
+        "move": "dolly-in",
+        "parallax": true
+      },
+      "transition": "dissolve",
+      "transition_dur": 0.8
+    }
+  ]
+}

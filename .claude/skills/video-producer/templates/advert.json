@@ -1,0 +1,49 @@
+{
+  "title": "",
+  "slug": "advert-video",
+  "lang": "ar",
+  "fps": 30,
+  "music": {
+    "track": null,
+    "volume": 0.18
+  },
+  "gpu": {
+    "accelerator": "NvidiaTeslaT4",
+    "video_steps": 30
+  },
+  "template": "advert",
+  "format": "reel",
+  "style": "cinematic commercial photography, clean composition, soft key light, shallow depth of field",
+  "voice": {
+    "engine": "chatterbox"
+  },
+  "grade": {
+    "look": "teal-orange",
+    "grain": 2,
+    "vignette": true
+  },
+  "subtitles": {
+    "burn": true,
+    "style": "reel"
+  },
+  "_notes": "20-40 s. Hook (problem/visual surprise) 0-2 s, 2-3 benefit shots, proof, offer, end card with brand + call to action (HyperFrames clip). 6-10 shots, 2-4 ai-video hero shots, energetic emotion 0.6-0.8.",
+  "shots": [
+    {
+      "id": "s01",
+      "engine": "ai-video",
+      "prompt": "",
+      "vo": "",
+      "emotion": 0.7,
+      "dur": 2.5,
+      "transition": "cut"
+    },
+    {
+      "id": "s99",
+      "engine": "clip",
+      "source": "assets/endcard.mp4",
+      "vo": "",
+      "dur": 3,
+      "onscreen_text": ""
+    }
+  ]
+}

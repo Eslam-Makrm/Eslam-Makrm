@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# vs-camera — cinematic camera moves and looks on the CPU (wrapper: runs vs_camera.py in venv-ai).
+exec "${VS_AI_PY:-$HOME/.video-studio/venv-ai/bin/python}" "$(dirname "$(readlink -f "$0")")/vs_camera.py" "$@"

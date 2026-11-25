@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# vs-lipsync2d AUDIO OUT.json [--text SCRIPT.txt] — mouth-shape timeline for 2D characters (Rhubarb Lip Sync, MIT, CPU).
+# Output: {"metadata":{...},"mouthCues":[{"start":0.00,"end":0.12,"value":"X"},...]} with Preston Blair shapes
+#   A closed (P B M) · B slightly open (K S T, most consonants) · C open (EH AE) · D wide open (AA) · E rounded (AO ER)
+#   F puckered (UW OW W) · G teeth on lip (F V) · H tongue (L) · X rest/silence
+# Arabic: uses the language-independent "phonetic" recognizer. Draw the 9 mouths in the character rig and pick
+# the cue at time t (animated-stories: mouthAt(cues, t); HyperFrames: one GSAP set() per cue).
+set -euo pipefail
+in="${1:?usage: vs-lipsync2d AUDIO OUT.json [--text SCRIPT.txt]}"; out="${2:?}"; shift 2
+RH="${VS_HOME:-$HOME/.video-studio}/vendor/rhubarb/rhubarb"
+[ -x "$RH" ] || { echo "rhubarb missing: run install.sh" >&2; exit 1; }
+tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+ffmpeg -v error -y -i "$in" -ac 1 -ar 16000 "$tmp/a.wav"
+extra=(); [ "${1:-}" = --text ] && extra=(--dialogFile "$2")
+"$RH" -q -r phonetic -f json --extendedShapes GHX "${extra[@]}" -o "$out" "$tmp/a.wav"
+python3 -c "import json,sys;d=json.load(open(sys.argv[1]));c=d['mouthCues'];print(f'{len(c)} mouth cues over {c[-1][\"end\"]:.2f}s ->',sys.argv[1])" "$out"

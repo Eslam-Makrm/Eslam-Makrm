@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# vs-qc — automated quality gate (runs vs_qc.py in venv-ai). See vs_qc.py --help.
+exec "${VS_AI_PY:-$HOME/.video-studio/venv-ai/bin/python}" "$(dirname "$(readlink -f "$0")")/vs_qc.py" "$@"

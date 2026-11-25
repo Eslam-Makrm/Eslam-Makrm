@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# vs-produce — production.json → finished, checked MP4 (see vs_produce.py --help).
+exec python3 "$(dirname "$(readlink -f "$0")")/vs_produce.py" "$@"

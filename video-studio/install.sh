@@ -23,6 +23,10 @@ EXPLAINROO_VER="0.6.2"                                     # explainroo npx CLI,
 PY_PKGS_MAIN="faster-whisper==1.2.1 piper-tts==1.8.0 edge-tts==7.3.1 av==14.2.0"
 PY_PKGS_MANIM="manim==0.22.1"
 PY_PKGS_EDITOR="auto-editor==29.3.1"
+PY_PKGS_AI="onnxruntime==1.23.2 jiwer==4.0.0 opencv-python-headless==4.12.0.88 pillow numpy"   # CPU AI helpers (no torch)
+RHUBARB_URL="https://github.com/DanielSWolf/rhubarb-lip-sync/releases/download/v1.14.0/Rhubarb-Lip-Sync-1.14.0-Linux.zip"  # MIT
+DEPTH_ONNX="https://huggingface.co/onnx-community/depth-anything-v2-small/resolve/4472b7362082/onnx/model.onnx"  # Apache-2.0
+DINO_ONNX="https://huggingface.co/onnx-community/dinov2-small/resolve/8b1f705a3a7f/onnx/model.onnx"             # Apache-2.0
 GSAP_VER="3.15.0"
 KAGGLE_PKG="kaggle==2.2.5 six==1.17.0"   # kaggle 2.2.5 imports six without declaring it
 FONTS_RAW="https://raw.githubusercontent.com/google/fonts/main/ofl"
@@ -42,7 +46,7 @@ if [ "$SYSTEM" = 1 ]; then
     sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
       ffmpeg git python3-venv python3-dev pkg-config libcairo2-dev libpango1.0-dev \
       texlive-latex-base texlive-latex-extra texlive-fonts-recommended texlive-science cm-super dvisvgm \
-      espeak-ng fonts-noto-core fonts-hosny-amiri fonts-noto-color-emoji fontconfig
+      espeak-ng tesseract-ocr tesseract-ocr-ara fonts-noto-core fonts-hosny-amiri fonts-noto-color-emoji fontconfig
   elif [ "$OS" = Darwin ] && command -v brew >/dev/null; then
     brew install ffmpeg git python@3.12 node pkg-config cairo pango espeak-ng
     brew install --cask basictex || warn "install MacTeX/BasicTeX by hand for Manim formulas"
@@ -82,12 +86,13 @@ mkvenv() { [ -x "$VS_HOME/$1/bin/python" ] || "$PY" -m venv "$VS_HOME/$1"; "$VS_
 mkvenv venv        && "$VS_HOME/venv/bin/pip"        install -q --prefer-binary $PY_PKGS_MAIN || die "venv install failed"; ok "venv: $PY_PKGS_MAIN"
 mkvenv venv-manim  && "$VS_HOME/venv-manim/bin/pip"  install -q $PY_PKGS_MANIM  && ok "venv-manim: $PY_PKGS_MANIM"
 mkvenv venv-editor && "$VS_HOME/venv-editor/bin/pip" install -q $PY_PKGS_EDITOR && ok "venv-editor: $PY_PKGS_EDITOR"
+mkvenv venv-ai     && "$VS_HOME/venv-ai/bin/pip"     install -q --prefer-binary $PY_PKGS_AI || die "venv-ai install failed"; ok "venv-ai: $PY_PKGS_AI"
 "$VS_HOME/venv-editor/bin/auto-editor" --version >/dev/null 2>&1 && ok "auto-editor ready (it fetches its own release binary from GitHub once)"
 
 # ---------------------------------------------------------------- 5. helpers, vendor files, fonts
 say "Helpers, GSAP, fonts"
 sed "s|@VS_SKILLS@|$SKILLS|; s|@VS_REPO@|$HERE|" "$HERE/bin/env.sh" > "$VS_HOME/env.sh"
-for f in "$HERE"/bin/vs-*; do f="$(basename "$f")"; cp "$HERE/bin/$f" "$VS_HOME/bin/$f"; chmod +x "$VS_HOME/bin/$f"; done
+for f in "$HERE"/bin/vs-* "$HERE"/bin/vs_*.py; do f="$(basename "$f")"; cp "$HERE/bin/$f" "$VS_HOME/bin/$f"; chmod +x "$VS_HOME/bin/$f"; done
 if [ ! -f "$VS_HOME/vendor/gsap.min.js" ]; then
   tmp="$(mktemp -d)"; (cd "$tmp" && npm pack -s "gsap@$GSAP_VER" >/dev/null && tar xzf gsap-*.tgz)
   cp "$tmp/package/dist/gsap.min.js" "$VS_HOME/vendor/"; rm -rf "$tmp"
@@ -114,7 +119,15 @@ from faster_whisper import WhisperModel
 for m in ('small', 'large-v3-turbo'): WhisperModel(m, device='cpu', compute_type='int8')" && ok "Whisper: small, large-v3-turbo"
   NODE_USE_ENV_PROXY=1 npx --yes "explainroo@$EXPLAINROO_VER" doctor --fetch >/dev/null 2>&1 && ok "explainroo: Kokoro voice + speech check" \
     || warn "explainroo doctor --fetch failed; run it by hand: npx --yes explainroo@$EXPLAINROO_VER doctor --fetch"
+  mkdir -p "$VS_HOME/models/onnx"
+  fetch "$DEPTH_ONNX" "$VS_HOME/models/onnx/depth-anything-v2-small.onnx"
+  fetch "$DINO_ONNX" "$VS_HOME/models/onnx/dinov2-small.onnx"; ok "ONNX: Depth-Anything-V2-Small, DINOv2-small"
 fi
+if [ "$OS" = Linux ] && [ ! -x "$VS_HOME/vendor/rhubarb/rhubarb" ]; then
+  tmp="$(mktemp -d)"; curl -sSfL -o "$tmp/r.zip" "$RHUBARB_URL" && (cd "$tmp" && unzip -q r.zip) \
+    && mkdir -p "$VS_HOME/vendor/rhubarb" && cp -R "$tmp"/Rhubarb-*/* "$VS_HOME/vendor/rhubarb/"; rm -rf "$tmp"
+fi
+[ -x "$VS_HOME/vendor/rhubarb/rhubarb" ] && ok "Rhubarb Lip Sync 1.14.0 (MIT)" || warn "Rhubarb not installed (2D lip sync)"
 
 # ---------------------------------------------------------------- 7. telemetry off, final check
 say "Privacy"

@@ -118,14 +118,14 @@ if have nvidia-smi && nvidia-smi -L >/dev/null 2>&1; then
 elif [ "$OS" = Darwin ] && [ "$ARCH" = arm64 ]; then
   GPU="apple-silicon"; VRAM=$RAM_GB
   pass "Apple Silicon (Metal/MPS, unified memory ${RAM_GB} GB) — GPU models run, 3-10x slower than CUDA"
-else warn "no usable GPU found: AI video/image/lip-sync models need a free cloud GPU (Colab/Kaggle) or stay unavailable"; fi
+else pass "no local GPU (not needed: AI models run on Kaggle's free GPU via vs-gpu)"; fi
 TIER="cpu"
 if [ "$GPU" != none ]; then
   if [ "$VRAM" -ge 24 ]; then TIER="gpu-24"; elif [ "$VRAM" -ge 16 ]; then TIER="gpu-16";
   elif [ "$VRAM" -ge 8 ]; then TIER="gpu-8"; else TIER="cpu"; warn "GPU under 8 GB: treated as CPU tier"; fi
 fi
 case "$TIER" in
-  cpu)    echo "  tier: CPU — everything in phase 1 runs; AI video/image models only via free cloud GPU notebooks" ;;
+  cpu)    echo "  local tier: CPU — editing, voices, camera, QC run here; AI generation runs on Kaggle" ;;
   gpu-8)  echo "  tier: GPU-8 — Wan2.2-5B (GGUF, ≤480p), Z-Image-Turbo (fp8/GGUF), MuseTalk, Chatterbox" ;;
   gpu-16) echo "  tier: GPU-16 — + Wan2.2-5B 720p, FLUX.2-klein-4B, LatentSync 1.5" ;;
   gpu-24) echo "  tier: GPU-24+ — + Wan2.2-A14B (fp8), character LoRA training, Wan2.2-Animate" ;;
@@ -181,6 +181,12 @@ if [ -x "${VS_GPU_PY:-$VS_HOME/venv-gpu/bin/python}" ]; then
     out="$("$VS_HOME/venv-gpu/bin/kaggle" kernels list -m --page-size 1 2>&1)"
     if grep -qiE "401|403|unauthor|forbidden|error" <<<"$out"; then fail "Kaggle API refused: $(head -1 <<<"$out")"
     else pass "Kaggle API answers with your token"; fi
+    q="$("$(dirname "$0")/vs-gpu" quota 2>/dev/null)" && pass "Kaggle GPU quota: $q"
+    stf="$VS_HOME/gpu-status.json"
+    if [ -f "$stf" ]; then
+      grep -q '"granted": true' "$stf" && pass "Kaggle granted a GPU on the last job" \
+        || fail "Kaggle granted NO GPU on the last job: verify your phone at kaggle.com > Settings (then: vs-gpu run \$VS_REPO/gpu-jobs/probe.py /tmp/p)"
+    else warn "GPU grant not tested yet: vs-gpu run \$VS_REPO/gpu-jobs/probe.py /tmp/p"; fi
   fi
 else warn "kaggle client missing (install.sh --gpu-client): AI image/video/voice generation unavailable, CPU engines only"; fi
 

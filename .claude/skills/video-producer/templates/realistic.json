@@ -1,0 +1,41 @@
+{
+  "title": "",
+  "slug": "realistic-video",
+  "lang": "ar",
+  "fps": 30,
+  "music": {
+    "track": null,
+    "volume": 0.18
+  },
+  "gpu": {
+    "accelerator": "NvidiaTeslaT4",
+    "video_steps": 30
+  },
+  "template": "realistic",
+  "format": "youtube",
+  "style": "photorealistic, natural light, 35mm film look, realistic skin texture",
+  "voice": {
+    "engine": "chatterbox"
+  },
+  "grade": {
+    "look": "neutral",
+    "grain": 3,
+    "letterbox": null
+  },
+  "subtitles": {
+    "burn": false,
+    "style": "clean"
+  },
+  "_notes": "Short film / documentary feel. Mostly ai-video from keyframes, 5 s per shot, motivated camera moves written into prompts. Letterbox 2.39 optional.",
+  "shots": [
+    {
+      "id": "s01",
+      "engine": "ai-video",
+      "prompt": "",
+      "vo": "",
+      "emotion": 0.5,
+      "dur": 5,
+      "transition": "fade"
+    }
+  ]
+}

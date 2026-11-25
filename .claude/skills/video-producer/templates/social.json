@@ -1,0 +1,40 @@
+{
+  "title": "",
+  "slug": "social-video",
+  "lang": "ar",
+  "fps": 30,
+  "music": {
+    "track": null,
+    "volume": 0.18
+  },
+  "gpu": {
+    "accelerator": "NvidiaTeslaT4",
+    "video_steps": 30
+  },
+  "template": "social",
+  "format": "reel",
+  "style": "bold vivid colours, high contrast, centred subject",
+  "voice": {
+    "engine": "chatterbox"
+  },
+  "grade": {
+    "look": "vivid"
+  },
+  "subtitles": {
+    "burn": true,
+    "style": "reel"
+  },
+  "_notes": "15-45 s. Text hook on screen in the first second (HyperFrames), fast cuts 1.5-3 s, captions always, loop-friendly last shot.",
+  "shots": [
+    {
+      "id": "s01",
+      "engine": "clip",
+      "source": "assets/hook.mp4",
+      "vo": "",
+      "emotion": 0.8,
+      "dur": 2,
+      "transition": "cut",
+      "onscreen_text": ""
+    }
+  ]
+}
