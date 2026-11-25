@@ -1,0 +1,34 @@
+<template>
+  <style>
+    #root { position: absolute; inset: 0; background: #10223a; overflow: hidden; font-family: "Cairo"; }
+    #hook-glow { position: absolute; left: 140px; top: 330px; width: 800px; height: 800px; border-radius: 50%;
+                 background: radial-gradient(circle, rgba(255,181,71,0.35), rgba(255,181,71,0) 70%); }
+    #hook-text { position: absolute; left: 100px; right: 170px; top: 640px; color: #f4f1ea; font-size: 104px;
+                 font-weight: 900; line-height: 1.35; text-align: center; }
+    .hook-w { display: inline-block; }
+    #hook-q { color: #ffb547; }
+    #hook-tag { position: absolute; left: 0; right: 0; top: 470px; text-align: center; color: #7fd1b9;
+                font-size: 46px; font-weight: 700; }
+  </style>
+  <div id="root" data-composition-id="hook" data-width="1080" data-height="1920">
+    <div id="hook-glow" class="clip" data-start="0" data-duration="4.2"></div>
+    <div id="hook-tag" class="clip" data-start="0" data-duration="4.2" dir="rtl" lang="ar">استوديو الفيديو</div>
+    <h1 id="hook-text" class="clip" data-start="0" data-duration="4.2" dir="rtl" lang="ar">
+      <span class="hook-w" id="hook-w1">هل</span> <span class="hook-w" id="hook-w2">تريد</span>
+      <span class="hook-w" id="hook-w3">أن</span> <span class="hook-w" id="hook-w4">تصنع</span>
+      <span class="hook-w" id="hook-w5">فيديو</span> <span class="hook-w" id="hook-w6">احترافيًا</span><span class="hook-w" id="hook-q">؟</span>
+    </h1>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#hook-glow", { scale: 0.7, opacity: 0.6 }, { scale: 1.15, opacity: 1, duration: 4.2, ease: "sine.inOut" }, 0);
+    tl.fromTo("#hook-tag", { y: 20, opacity: 0.5 }, { y: 0, opacity: 1, duration: 0.5, ease: "power3.out" }, 0);
+    // words enter from the right, in reading order, following the voice (~0.45 s per word)
+    ["#hook-w1", "#hook-w2", "#hook-w3", "#hook-w4", "#hook-w5", "#hook-w6"].forEach((id, i) => {
+      tl.fromTo(id, { y: 50, opacity: i === 0 ? 0.6 : 0 }, { y: 0, opacity: 1, duration: 0.4, ease: "power3.out" }, 0.3 + i * 0.45);
+    });
+    tl.fromTo("#hook-q", { scale: 0, rotation: -30 }, { scale: 1, rotation: 0, duration: 0.5, ease: "back.out(2.5)" }, 3.0);
+    tl.to("#hook-text", { x: -1100, duration: 0.35, ease: "power3.in" }, 3.85);
+    window.__timelines["hook"] = tl;
+  </script>
+</template>

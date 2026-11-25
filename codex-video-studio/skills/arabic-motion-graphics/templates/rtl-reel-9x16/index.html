@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-composition-variables='[{"id":"accent","type":"color","label":"اللون المميز","default":"#ffb547"},{"id":"handle","type":"string","label":"الحساب","default":"$video-studio"}]'>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <script src="assets/gsap.min.js"></script>
+    <style>
+      @font-face { font-family: "Cairo"; src: url("assets/fonts/Cairo.ttf"); font-weight: 200 1000; }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #10223a; }
+      #root { position: relative; width: 100%; height: 100%; font-family: "Cairo"; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="20.5" data-width="1080" data-height="1920">
+      <div id="hook" data-composition-id="hook" data-composition-src="compositions/hook.html" data-start="0" data-duration="4.2"
+           data-track-index="1" data-track-kind="graphics" data-width="1080" data-height="1920"></div>
+      <div id="idea" data-composition-id="idea" data-composition-src="compositions/idea.html" data-start="4.2" data-duration="5.4"
+           data-track-index="1" data-track-kind="graphics" data-width="1080" data-height="1920"></div>
+      <div id="features" data-composition-id="features" data-composition-src="compositions/features.html" data-start="9.6" data-duration="6"
+           data-track-index="1" data-track-kind="graphics" data-width="1080" data-height="1920"></div>
+      <div id="endcard" data-composition-id="endcard" data-composition-src="compositions/endcard.html" data-start="15.6" data-duration="4.9"
+           data-track-index="1" data-track-kind="graphics" data-width="1080" data-height="1920"></div>
+    </div>
+    <script>
+      window.__timelines["main"] = gsap.timeline({ paused: true });
+    </script>
+  </body>
+</html>

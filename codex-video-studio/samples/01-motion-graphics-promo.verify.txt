@@ -1,0 +1,5 @@
+duration=12.00s size=1.6MB
+  {'codec_name': 'h264', 'codec_type': 'video', 'width': 1920, 'height': 1080, 'pix_fmt': 'yuv420p', 'r_frame_rate': '30/1'}
+sheet=01-motion-graphics-promo.sheet.jpg
+motion: 131/360 frames change (36%)
+audio: none

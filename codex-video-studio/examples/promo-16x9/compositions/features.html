@@ -1,0 +1,29 @@
+<template>
+  <style>
+    #root { position: absolute; inset: 0; background: #f4f1ea; overflow: hidden; font-family: "Cairo"; }
+    .feat-card { position: absolute; top: 300px; width: 480px; height: 480px; border-radius: 36px; padding: 48px;
+                 color: #0d1b2a; }
+    .feat-num { font-size: 120px; font-weight: 900; line-height: 1; }
+    .feat-label { font-size: 54px; font-weight: 700; margin-top: 40px; line-height: 1.1; }
+    #feat-a { left: 150px; background: #ffb547; }
+    #feat-b { left: 720px; background: #7fd1b9; }
+    #feat-c { left: 1290px; background: #ff8c8c; }
+    #feat-head { position: absolute; top: 120px; left: 150px; font-size: 72px; font-weight: 900; color: #0d1b2a; }
+  </style>
+  <div id="root" data-composition-id="features" data-width="1920" data-height="1080">
+    <h2 id="feat-head" class="clip" data-start="0" data-duration="5">One studio, every format</h2>
+    <div id="feat-a" class="feat-card clip" data-start="0.3" data-duration="4.7"><div class="feat-num">16:9</div><div class="feat-label">Explainers &amp; lessons</div></div>
+    <div id="feat-b" class="feat-card clip" data-start="0.6" data-duration="4.4"><div class="feat-num">9:16</div><div class="feat-label">Reels, Shorts, TikTok</div></div>
+    <div id="feat-c" class="feat-card clip" data-start="0.9" data-duration="4.1"><div class="feat-num">ع</div><div class="feat-label">Arabic voice &amp; subtitles</div></div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#feat-head", { x: -120, opacity: 0 }, { x: 0, opacity: 1, duration: 0.5, ease: "power3.out" }, 0);
+    ["#feat-a", "#feat-b", "#feat-c"].forEach((id, i) => {
+      tl.fromTo(id, { y: 700, rotation: 8 }, { y: 0, rotation: 0, duration: 0.7, ease: "back.out(1.4)" }, 0.3 + i * 0.3);
+      tl.to(id, { y: -14, duration: 1.2, ease: "sine.inOut", yoyo: true, repeat: 1 }, 1.1 + i * 0.3);
+    });
+    tl.to(["#feat-a", "#feat-b", "#feat-c", "#feat-head"], { y: -1100, duration: 0.5, ease: "power3.in", stagger: 0.05 }, 4.4);
+    window.__timelines["features"] = tl;
+  </script>
+</template>

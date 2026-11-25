@@ -1,0 +1,33 @@
+<template>
+  <style>
+    #root { position: absolute; inset: 0; background: #10223a; overflow: hidden; font-family: "Cairo"; }
+    #feat-title { position: absolute; left: 100px; right: 170px; top: 440px; color: #f4f1ea; font-size: 88px;
+                  font-weight: 900; text-align: right; line-height: 1.35; }
+    .feat-pill { position: absolute; right: 170px; width: 810px; height: 170px; border-radius: 85px; background: #f4f1ea;
+                 display: flex; flex-direction: row; align-items: center; gap: 40px; padding: 0 30px; }
+    .feat-num { width: 116px; height: 116px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+                font-size: 72px; font-weight: 900; color: #10223a; flex: none; }
+    .feat-label { font-size: 62px; font-weight: 800; color: #10223a; line-height: 1.3; }
+    #feat-p1 { top: 700px; } #feat-p1 .feat-num { background: #ffb547; }
+    #feat-p2 { top: 920px; } #feat-p2 .feat-num { background: #7fd1b9; }
+    #feat-p3 { top: 1140px; } #feat-p3 .feat-num { background: #ff8c8c; }
+  </style>
+  <div id="root" data-composition-id="features" data-width="1080" data-height="1920">
+    <h2 id="feat-title" class="clip" data-start="0" data-duration="6" dir="rtl" lang="ar">كل ما تحتاجه</h2>
+    <div id="feat-p1" class="feat-pill clip" data-start="0.2" data-duration="5.8" dir="rtl" lang="ar"><div class="feat-num">١</div><div class="feat-label">صوت عربي</div></div>
+    <div id="feat-p2" class="feat-pill clip" data-start="1.6" data-duration="4.4" dir="rtl" lang="ar"><div class="feat-num">٢</div><div class="feat-label">ترجمة تلقائية</div></div>
+    <div id="feat-p3" class="feat-pill clip" data-start="3.4" data-duration="2.6" dir="rtl" lang="ar"><div class="feat-num">٣</div><div class="feat-label">مونتاج كامل</div></div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#feat-title", { x: 80, opacity: 0.4 }, { x: 0, opacity: 1, duration: 0.5, ease: "power3.out" }, 0);
+    // pills accumulate on the voice: each enters from the right, earlier ones stay
+    [["#feat-p1", 0.2], ["#feat-p2", 1.6], ["#feat-p3", 3.4]].forEach(([id, t]) => {
+      tl.fromTo(id, { x: 1000 }, { x: 0, duration: 0.6, ease: "back.out(1.4)" }, t);
+      tl.fromTo(id + " .feat-num", { scale: 0.3, rotation: 90 }, { scale: 1, rotation: 0, duration: 0.5, ease: "back.out(2)" }, t + 0.25);
+    });
+    tl.fromTo("#feat-p1", { scale: 1 }, { scale: 1.03, duration: 1.0, ease: "sine.inOut" }, 4.4);
+    tl.to(["#feat-title", "#feat-p1", "#feat-p2", "#feat-p3"], { x: -1100, duration: 0.4, ease: "power3.in", stagger: 0.04 }, 5.5);
+    window.__timelines["features"] = tl;
+  </script>
+</template>

@@ -1,0 +1,39 @@
+1
+00:00:00,350 --> 00:00:04,000
+Most videos on social media
+are watched with the sound off.
+
+2
+00:00:04,310 --> 00:00:06,060
+Subtitles keep those viewers.
+
+3
+00:00:07,217 --> 00:00:10,377
+First, a speech model called
+Whisper listens to the voice,
+
+4
+00:00:10,377 --> 00:00:14,147
+and writes down every word
+with the moment it was spoken.
+
+5
+00:00:15,183 --> 00:00:17,433
+Then the words are
+grouped into short lines.
+
+6
+00:00:17,778 --> 00:00:20,308
+A new line starts wherever
+the speaker pauses.
+
+7
+00:00:21,450 --> 00:00:24,180
+Finally, the lines are
+drawn onto the video.
+
+8
+00:00:24,445 --> 00:00:26,935
+It all runs on your
+own computer, for free.
+
