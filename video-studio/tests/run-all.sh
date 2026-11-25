@@ -81,7 +81,7 @@ if echo "مَرْحَبًا بِكُمْ" | "$VS_PY" -m piper -m "$PIPER_VOICES/
 cp -R "$HERE/examples/qari-ad-e2e" "$WORK/qari"; rm -rf "$WORK/qari/build" "$WORK/qari/out"
 step "video-producer one-prompt ad (vs-produce + vs-qc)" "$OUT/11-qari-ad.mp4" bash -c "vs-produce '$WORK/qari' --gpu off >/dev/null 2>&1 && cp '$WORK/qari/out/qari-ad.mp4' '$OUT/11-qari-ad.mp4'"
 # 12 GPU job runtime (packing, 2-GPU fan-out) and vs-produce --async, both on CPU with stubs
-for t in test_gpu_runtime test_produce_async test_colab test_produce_colab; do
+for t in test_gpu_runtime test_gpu_resubmit test_produce_async test_colab test_produce_colab; do
   echo; echo "=== $t"
   if bash "$HERE/tests/$t.sh" | tail -1 | grep -q '^PASS'; then RESULTS+=("PASS  $t"); else RESULTS+=("FAIL  $t"); FAIL=1; fi
 done

@@ -15,7 +15,12 @@ Options for run/submit:
   --params JSON          dict passed to the job as PARAMS (or @file.json)
   --input PATH           file to ship with the job (repeatable); appears in /kaggle/working/in/
   --timeout S            max run time in seconds (default 3600)
-  --queue-timeout S      run: give up and delete the job if still queued after S s (default 2700)
+  --queue-timeout S      run: a submission still QUEUED after S s is withdrawn and resubmitted (default 600)
+  --resubmits N          run: how many times to resubmit a stalled submission (default 4; waits double each time)
+
+Stalled submissions (measured 2026-11-25): some batch sessions stay QUEUED for hours while fresh submissions of
+the same account start in ~15 s (a 30-min-old queued job sat while 3 new ones started at once). Waiting in the
+queue costs no quota, but the stalled entry never recovers, so `run` withdraws it and submits again.
   --no-internet          run offline (jobs that download models need internet)
 
 How it works: the job script, its PARAMS and its inputs (base64, ≤ 25 MB in total) are packed into one
@@ -136,7 +141,7 @@ def wait(ref, timeout, queue_timeout=None):
         st, msg = status(ref)
         started = started or st not in QUEUED
         if queue_timeout and not started and time.time() - t0 > queue_timeout:
-            print(f"still queued after {queue_timeout}s: no T4 free on Kaggle right now", file=sys.stderr)
+            print(f"still queued after {queue_timeout}s (stalled submission or no T4 free)", file=sys.stderr)
             return "queue"
         if st != last:
             print(f"  {int(time.time() - t0):5d}s  {st}", file=sys.stderr); last = st
@@ -186,7 +191,8 @@ def main():
         p.add_argument("--name"); p.add_argument("--accelerator", default="NvidiaTeslaT4")
         p.add_argument("--params"); p.add_argument("--input", action="append")
         p.add_argument("--timeout", type=int, default=3600); p.add_argument("--no-internet", action="store_true")
-        p.add_argument("--queue-timeout", type=int, default=2700, help="delete the job if Kaggle has not started it after S seconds (frees the slot); 0 = wait forever")
+        p.add_argument("--queue-timeout", type=int, default=600, help="withdraw + resubmit a submission Kaggle has not started after S seconds; 0 = wait forever")
+        p.add_argument("--resubmits", type=int, default=4)
     p = sub.add_parser("status"); p.add_argument("ref")
     p = sub.add_parser("wait"); p.add_argument("ref"); p.add_argument("--timeout", type=int, default=7200)
     p = sub.add_parser("fetch"); p.add_argument("ref"); p.add_argument("out")
@@ -212,13 +218,20 @@ def main():
         q = quota()
         if a.accelerator.lower() != "none" and q["gpu_left_h"] < 0.25:
             sys.exit(f"Kaggle GPU quota nearly used up ({q}); it refreshes {q['refresh']}")
-        ref = submit(a); t0 = time.time()
-        ok = wait(ref, a.timeout + 1800, a.queue_timeout)
-        if ok == "queue":   # a queued session holds one of the 2 free batch slots: release it, try again later
-            u, sl = split(ref)
+        t0 = time.time(); qt = a.queue_timeout
+        for attempt in range(a.resubmits + 1):
+            ref = submit(a)
+            ok = wait(ref, a.timeout + 1800, qt)
+            if ok != "queue":
+                break
+            u, sl = split(ref)       # stalled: withdraw it (frees one of the 2 batch slots, no quota used) ...
             call("kernels.KernelsApiService", "DeleteKernel", {"userName": u, "kernelSlug": sl})
-            print(json.dumps({"ref": ref, "ok": False, "queued_timeout": True,
-                              "hint": "Kaggle had no free GPU; the queued job was deleted. Retry later."}))
+            if attempt < a.resubmits:                        # ... and submit again, waiting longer each time
+                print(f"resubmitting (attempt {attempt + 2} of {a.resubmits + 1})", file=sys.stderr)
+                time.sleep(30); qt = qt * 2 if qt else qt
+        if ok == "queue":
+            print(json.dumps({"ref": ref, "ok": False, "queued_timeout": True, "attempts": a.resubmits + 1,
+                              "hint": "Kaggle did not start the job after every resubmission; retry later."}))
             sys.exit(6)
         fetch(ref, a.out)
         rep = os.path.join(a.out, "report.json")

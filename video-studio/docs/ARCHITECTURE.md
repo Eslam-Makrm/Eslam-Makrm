@@ -104,29 +104,30 @@ Next round (T4-first defaults, running): Chatterbox retest (3 lines, Arabic calm
 primary (3 images), Wan2.1-1.3B text-to-video (2 clips, t4 preset), MuseTalk on an SDXL portrait. Reusable as
 `tests/gpu-bench.sh` (writes `bench.jsonl` with time, VRAM peak and quota per job, plus contact sheets).
 
-### Kaggle queue investigation (2026-11-25)
+### Kaggle queue investigation (2026-11-25) — cause found: stalled submissions
 
-What the account shows (`GetAcceleratorQuotaStatistics`, `ListKernels`, `GetKernelSessionStatus`):
-- From 13:11 UTC on, every T4 batch job except one sat in state QUEUED (empty status) for 45 min–2 h with
-  `timeReserved: 0s` — Kaggle never assigned a GPU, so nothing was wrong inside the jobs and no quota was used.
-- The exception: the TTS job submitted at 13:57 started at once while an image job submitted at 13:11 was still
-  queued. So the queue is not strictly first-in-first-out per account and not caused by our own slot use
-  (no other session was active; `ListKernels` lists only studio kernels).
-- Jobs before 12:00 UTC started within a minute. The stalls coincide with US daytime (≈14:00–22:00 UTC),
-  when free T4 demand is highest — a likely but unconfirmed cause.
+Symptom: from 13:11 UTC most studio jobs sat QUEUED for 45 min–2 h (`timeReserved: 0s`, no quota used) and were
+deleted by the queue timeout. Tests made while `bench-wan13` (submitted 17:02) was still queued:
 
-Interactive vs API: an API-submitted kernel is a *batch* session — the same thing as **Save Version → Save &
-Run All** in the web UI; batch and interactive sessions draw on the same 30 h weekly GPU quota but have
-separate concurrency limits (1 interactive, 2 batch measured here). Kaggle's documentation pages are rendered by
-JavaScript and could not be read automatically, and nothing official states whether interactive sessions are
-served before batch ones. The API cannot open an interactive session, so this can only be checked by hand:
-while a studio job shows QUEUED, open kaggle.com → Code → New Notebook → Settings → Accelerator **GPU T4 ×2**
-and see whether the session starts. If it starts, interactive sessions are served first and the notebook can
-be used like the Colab backup (paste a `colab/*.ipynb` job cell; it writes to `/kaggle/working/out`). If it also
-waits, the shortage is Kaggle-wide and the remedy is to retry outside US daytime or use Colab.
+| Test | Result |
+|---|---|
+| Owner opens a notebook in the web UI, GPU T4 ×2 | started at once (2× T4 15 GiB, 30 GiB RAM, 57.6 GiB disk) |
+| `CreateKernelSession` (official SDK call that opens an *interactive* session) | started at once and used quota from the first second; **cannot run code** (no execute call in the API; its log stream returned 400). Cancelled after ~4 min with `CancelKernelSession`. Not usable, and keeping interactive sessions busy by script is not what they are for |
+| fresh **batch** probe via the API, 17:29 | started in < 15 s, done in 48 s |
+| same probe with a 90-min session limit | started in 15 s → the session timeout is not the cause |
+| packed sizes 15–26 KB for all jobs | size is not the cause |
+| fresh SDXL bench job (same code + params that had stalled 3× before), 17:31 | **started in 15 s** while `bench-wan13` was still queued |
 
-Mitigations in place: `vs-gpu run --queue-timeout` (default 45 min, deletes the queued kernel so it never holds a
-slot), retry rounds 30 min apart in long chains, `vs-produce --async`, and the Colab manual backup below.
+Conclusion: not a capacity shortage, not interactive-vs-API priority, not job configuration — individual batch
+submissions sometimes **stall in Kaggle's queue and never recover**, while new submissions start immediately.
+(The 17:02 job still had no Docker image assigned 30 min later; started jobs get one at once.) Earlier
+"US daytime" guess withdrawn.
+
+Fix (automatic, within Kaggle's rules, no quota cost): `vs-gpu run` withdraws a submission still QUEUED after
+`--queue-timeout` (default 10 min) and submits it again, up to `--resubmits` (default 4) times with doubling
+waits (10, 20, 40, 80, 160 min); `vs-produce --async` does the same for a job queued > 20 min. Only one copy of
+a job exists at a time (the stalled one is deleted first), so no duplicate GPU work and the 2 batch slots are
+never both held by stalled entries. Test: `tests/test_gpu_resubmit.sh` (fake API).
 
 ## Colab manual backup (`vs-colab`, `colab/*.ipynb`)
 

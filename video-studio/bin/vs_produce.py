@@ -130,7 +130,12 @@ def gpu_job(pr, job, items, name, inputs=(), timeout=5400, accel=None):
         if st in ("error", "cancelled", "cancel_acknowledged"):
             subprocess.run([vg, "fetch", ref, out], capture_output=True, text=True); os.remove(state)
             log(f"GPU job {name} failed on Kaggle (see {out}/kaggle.log)"); return None
-        raise Pending(f"{name}: {ref} is {st or 'queued'}")
+        age = time.time() - json.load(open(state)).get("submitted", time.time())
+        if st in ("", "queued") and age > 1200:   # stalled submission (fresh ones start in ~15 s): withdraw, resubmit
+            subprocess.run([vg, "cancel", ref], capture_output=True, text=True); os.remove(state)
+            log(f"GPU job {name}: {ref} stalled in Kaggle's queue for {age / 60:.0f} min — resubmitting")
+        else:
+            raise Pending(f"{name}: {ref} is {st or 'queued'}")
     json.dump(items, open(params, "w", encoding="utf-8"), ensure_ascii=False)
     common = ["--name", name, "--params", "@" + params, "--timeout", str(timeout),
               "--accelerator", accel or pr.p.get("gpu", {}).get("accelerator", "NvidiaTeslaT4")]

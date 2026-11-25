@@ -12,7 +12,8 @@ Skills live in `.claude/skills/` (loaded automatically); tools and code in `vide
 - AI images / video / expressive voices / realistic lip sync: open models on the person's free Kaggle GPU
   via `vs-gpu` (token = network secret for api.kaggle.com, `KAGGLE_USERNAME` env var). Check
   `vs-gpu quota` before big jobs. If Kaggle grants no GPU, `vs-produce` falls back to CPU routes and says so.
-- Kaggle queued with no GPU → retry later, or the manual Colab backup: `vs-produce DIR --gpu colab` writes
+- A Kaggle job stuck QUEUED is resubmitted automatically by `vs-gpu run` (stalled submissions are common; fresh
+  ones start in seconds). If all resubmissions stall: retry later, or the manual Colab backup: `vs-produce DIR --gpu colab` writes
   notebooks the person runs themselves, then `vs-colab import`.
 - Never use OpenAI / ChatGPT / Codex / Sora / image_gen, HeyGen, ElevenLabs or any paid API; never automate
   Colab. Only commercially licensed models (see the `ai-generation` skill).
