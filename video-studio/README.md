@@ -56,7 +56,7 @@ sheet, QC report, route log).
 
 ## Tools (`bin/`, installed to `~/.video-studio/bin`)
 
-`vs-produce` (`--async`) · `vs-gpu` (`quota/run/submit/status/fetch/cancel`) · `vs-camera` · `vs-qc` · `vs-lipsync2d` · `vs-verify` · `vs-hf-check` · `vs-doctor`
+`vs-produce` (`--async`, `--gpu colab`) · `vs-gpu` (`quota/run/submit/status/fetch/cancel`) · `vs-colab` (manual Colab backup: `build/import`, notebooks in `colab/`) · `vs-camera` · `vs-qc` · `vs-lipsync2d` · `vs-verify` · `vs-hf-check` · `vs-doctor`
 GPU job scripts: `gpu-jobs/`. Regression suite: `tests/run-all.sh`.
 
 ## Samples (all rendered and verified in a Claude cloud session, 4 CPU cores)
@@ -64,6 +64,7 @@ GPU job scripts: `gpu-jobs/`. Regression suite: `tests/run-all.sh`.
 | File | What it shows |
 |---|---|
 | `samples/01…07` | phase-1 engines: promo, Arabic reel + voice, auto-subtitles, Manim lesson, explainer, editing, painted story |
+| `samples/voice/*.wav` | Chatterbox Multilingual on Kaggle T4: Arabic calm, Arabic excited, English (raw, before the −14 LUFS mix) |
 | `samples/08-qari-ad-one-prompt.mp4` | **one prompt → 21.7 s Arabic ad reel**: 3 HyperFrames shots + painted still with parallax (AI-video fallback), Piper voice, transitions, subtitles; QC PASS (speech WER 7 %, −14.0 LUFS) |
 
 ## Licences and limits

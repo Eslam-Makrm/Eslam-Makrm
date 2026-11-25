@@ -53,6 +53,8 @@ T4 = Turing sm75, 14.6 GB, 65 TFLOPS fp16 tensor (14.5 measured on a plain matmu
 | Parallel GPU sessions | an L4 job submitted alongside a T4 job got no GPU, and the T4 job then sat "queued" for 2 h holding a slot; Kaggle refused new jobs with *"Maximum batch GPU session count of 2 reached"* until the stuck kernel was deleted → submit sequentially; `vs-gpu cancel` added |
 | GPU runtime packing + 2-GPU fan-out (CPU self-test, `tests/test_gpu_runtime.sh`) | **PASS** |
 | `vs-produce --async` (stub backend, `tests/test_produce_async.sh`) | **PASS** |
+| Colab backup: notebook build, every cell executed with stubbed `nvidia-smi`/`google.colab`, result import, zip-slip refused, committed notebooks current (`tests/test_colab.sh`) | **PASS** (CPU; not yet run on a real Colab T4) |
+| `vs-produce --gpu colab`: notebook written → result imported → film finished (`tests/test_produce_colab.sh`) | **PASS** (CPU) |
 | vs-camera move / parallax / grade | **PASS** (4 s 720p parallax in ~4 s on 4 cores; frames checked by eye) |
 | vs-qc on phase-1 lesson | **PASS** (Arabic WER 8 %, −14.0 LUFS) |
 | vs-lipsync2d (Arabic Piper line) | **PASS** (34 cues / 4.8 s in 1.4 s) |
@@ -90,7 +92,8 @@ The objective is a reliable, repeatable studio on the free tier, not the biggest
 | image.py v2 (Z-Image balanced over 2× T4 → SDXL fallback) | 2026-11-25 `vs-t4-image` | **FAIL** — load 267 s; Z-Image OOM on GPU 0 (12 GB transformer + 1.46 GB attention); SDXL fallback crashed (`enable_vae_tiling` removed in diffusers 0.43). Fixed in 61049c8 (fp8 transformer weights in balanced mode, `vae_tiling()`); retest `vs-t4-image2` **PENDING** |
 | tts_chatterbox.py (2 lines over 2× T4) | 2026-11-25 `vs-t4-tts` | **PARTIAL** — `excited` line generated (model load 39 s, 20.4 s per line, 1.5 min job); the other worker crashed: both downloaded pkuseg's model into `~/.pkuseg` at once (`FileExistsError`). Fixed in 00e4db8 (fetched once before fan-out); retest **PENDING** |
 | tts_chatterbox.py retest (3 lines over 2× T4) | 2026-11-25 `vs-t4-tts2` | **PASS** — all 3 lines; both GPU workers OK. Load 35 s, 20.5 s per Arabic line (5.2–5.5 s audio), 3.3 s for the English line; peak VRAM 3.2 GB per T4; 2.2 min job, 0.04 GPU-h. Checked by transcription (Whisper medium): Arabic calm 1/9 words wrong (name ليلى → لينا), excited 1/8 (القصة → قصة), English exact; ≈ −18 LUFS before the studio's −14 LUFS mix. Audio not listened to by a human yet |
-| image.py SDXL primary | 2026-11-25 `vs-t4-sdxl` | **NOT RUN** — Kaggle kept it queued 45 min without a T4; deleted by the new queue timeout; retry queued |
+| image.py SDXL primary | 2026-11-25 `vs-t4-sdxl` 14:00, `bench-sdxl` 15:31 and 16:17 UTC | **NOT RUN** ×3 — each stayed queued 45 min without a T4 and was deleted by the queue timeout (0 GPU-h used); retries continue |
+| video.py Wan2.1-1.3B text-to-video (t4 preset, 2 clips) | 2026-11-25 `vs-t4-wan13` 14:45, `bench-wan13` 17:02 UTC | **NOT RUN** — first try queued 45 min, deleted; second try queued at the time of writing |
 | image.py Z-Image retest | 2026-11-25 `vs-t4-image2` | **NOT RUN** — queued 2 h without a T4; deleted (heavy mode, deprioritised) |
 | video.py text-to-video (Wan2.2-5B, t4-fast 832×480×49 f, 16 steps) | 2026-11-25 `vs-t4-video` | **FAIL** — load 284 s; denoising **7.8 s/step (2 min for 16 steps)**, but the VAE decode took ~62 min (VAE ended up off-GPU under `device_map="balanced"`) and the fp16 output was black; the bf16 rebuild then hit OOM on GPU 1 (first pipeline not freed). 70 GPU-minutes. Fixed in 00e4db8: one T4 with model CPU offload (VAE on GPU, no fp8), NaN latents stop the run at the failing step, hooks removed before the bf16 rebuild; retest **PENDING** |
 | video.py image-to-video, lipsync_musetalk.py | — | **PENDING** (queued after the image retest; they need its keyframes) |
@@ -100,6 +103,53 @@ GPU used by all runs so far: 1.57 h of the 30 h weekly quota.
 Next round (T4-first defaults, running): Chatterbox retest (3 lines, Arabic calm/excited + English), SDXL as
 primary (3 images), Wan2.1-1.3B text-to-video (2 clips, t4 preset), MuseTalk on an SDXL portrait. Reusable as
 `tests/gpu-bench.sh` (writes `bench.jsonl` with time, VRAM peak and quota per job, plus contact sheets).
+
+### Kaggle queue investigation (2026-11-25)
+
+What the account shows (`GetAcceleratorQuotaStatistics`, `ListKernels`, `GetKernelSessionStatus`):
+- From 13:11 UTC on, every T4 batch job except one sat in state QUEUED (empty status) for 45 min–2 h with
+  `timeReserved: 0s` — Kaggle never assigned a GPU, so nothing was wrong inside the jobs and no quota was used.
+- The exception: the TTS job submitted at 13:57 started at once while an image job submitted at 13:11 was still
+  queued. So the queue is not strictly first-in-first-out per account and not caused by our own slot use
+  (no other session was active; `ListKernels` lists only studio kernels).
+- Jobs before 12:00 UTC started within a minute. The stalls coincide with US daytime (≈14:00–22:00 UTC),
+  when free T4 demand is highest — a likely but unconfirmed cause.
+
+Interactive vs API: an API-submitted kernel is a *batch* session — the same thing as **Save Version → Save &
+Run All** in the web UI; batch and interactive sessions draw on the same 30 h weekly GPU quota but have
+separate concurrency limits (1 interactive, 2 batch measured here). Kaggle's documentation pages are rendered by
+JavaScript and could not be read automatically, and nothing official states whether interactive sessions are
+served before batch ones. The API cannot open an interactive session, so this can only be checked by hand:
+while a studio job shows QUEUED, open kaggle.com → Code → New Notebook → Settings → Accelerator **GPU T4 ×2**
+and see whether the session starts. If it starts, interactive sessions are served first and the notebook can
+be used like the Colab backup (paste a `colab/*.ipynb` job cell; it writes to `/kaggle/working/out`). If it also
+waits, the shortage is Kaggle-wide and the remedy is to retry outside US daytime or use Colab.
+
+Mitigations in place: `vs-gpu run --queue-timeout` (default 45 min, deletes the queued kernel so it never holds a
+slot), retry rounds 30 min apart in long chains, `vs-produce --async`, and the Colab manual backup below.
+
+## Colab manual backup (`vs-colab`, `colab/*.ipynb`)
+
+Kaggle stays the automated provider; Colab is a **manual** fallback that a person runs, because Colab's free
+tier forbids remote control and favours people working in the notebook UI (Colab FAQ, read 2026-11-25:
+restricted on free runtimes — SSH/remote desktops, bypassing the notebook UI for a web UI, distributed workers;
+banned everywhere — multiple accounts to dodge limits, deepfakes, proxies, mining). Free Colab gives
+usually one T4, ≤ 12 h per runtime, idle timeouts and unpublished, changing limits.
+
+- `vs-colab build JOB.py NB.ipynb --params … --input … [--ask FILE]` packs **the same job code** that goes to
+  Kaggle (`_boot.tmpl` + `_common.py` + job + params + inputs) into one notebook; `/kaggle/working` and
+  `/kaggle/temp` are mapped onto `/content`, so the jobs run unchanged. The person presses Run all; the
+  notebook downloads `vs-result-NAME.zip` and releases the GPU (`runtime.unassign()`).
+- `vs-colab import ZIP OUT` unpacks it into the layout `vs-gpu fetch` writes (paths escaping OUT refused).
+- `vs-produce DIR --gpu colab` writes `build/colab/NAME.ipynb` for each GPU stage, exits 75, and continues
+  after import; routes are recorded as `…@colab-t4`.
+- Ready-made notebooks (rebuild with `colab/build.sh` after changing a job; `tests/test_colab.sh` fails if
+  stale): `colab/sdxl.ipynb` (3 SDXL test images), `colab/wan21-1.3b.ipynb` (2 Wan2.1-1.3B clips, t4 preset),
+  `colab/musetalk.ipynb` (asks for a face image, uses the Chatterbox Arabic sample as audio).
+- Colab's free VM has ~12.7 GB RAM (Kaggle 31 GB): Wan's 11 GB UMT5 text encoder cannot sit in RAM beside the
+  transformer for CPU offload, so `video.py` switches to **low-RAM mode** below 20 GB host RAM — prompts are
+  encoded first with the encoder on the GPU, the encoder is freed, and the pipeline runs on the embeddings.
+  Not yet verified on a real Colab runtime.
 
 ### GPU ledger
 <!-- updated by hand from report.json of each run -->

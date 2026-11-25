@@ -1,0 +1,143 @@
+#!/usr/bin/env python3
+"""vs-colab — MANUAL Google Colab backup for the studio's GPU jobs (Kaggle stays the automated provider).
+
+  vs-colab build JOB.py OUT.ipynb [--params JSON|@file] [--input PATH ...] [--ask NAME ...] [--name NAME]
+        write a self-contained notebook: the SAME packed job vs-gpu sends to Kaggle (gpu-jobs/_boot.tmpl +
+        _common.py + JOB.py + params + inputs), with /kaggle/* mapped to /content/*. --ask NAME adds an
+        upload cell for an input that is not embedded (e.g. a face you make in another notebook).
+  vs-colab import RESULT.zip OUT_DIR
+        unpack the zip the notebook downloaded into OUT_DIR — the same layout `vs-gpu fetch` writes,
+        so vs-produce and the QC tools use it unchanged.
+
+Colab rules this respects (research.google.com/colaboratory/faq.html, read 2026-11-25): a person opens the
+notebook and presses Run all in the notebook UI — Claude never drives Colab (no browser automation, no
+SSH/remote desktop, no web UI on the runtime, one account only, no deepfakes). Free Colab = usually one T4,
+≤ 12 h, idle timeouts, unpublished and fluctuating limits; the last cell releases the GPU.
+"""
+import argparse, importlib.machinery, importlib.util, json, os, re, sys, zipfile
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def _vs_gpu():
+    path = os.path.join(HERE, "vs-gpu")
+    loader = importlib.machinery.SourceFileLoader("vs_gpu", path)
+    spec = importlib.util.spec_from_loader("vs_gpu", loader); m = importlib.util.module_from_spec(spec)
+    loader.exec_module(m); return m
+
+
+def md(*lines):
+    return {"cell_type": "markdown", "metadata": {}, "source": "\n".join(lines)}
+
+
+def code(src):
+    return {"cell_type": "code", "metadata": {}, "execution_count": None, "outputs": [], "source": src}
+
+
+def build(job, out, params, inputs, ask, name):
+    params = json.load(open(params[1:])) if params and params.startswith("@") else json.loads(params or "{}")
+    params.setdefault("_need_gpu", True); params.setdefault("_need_internet", True)
+    params.setdefault("parallel", False)                 # Colab free tier = one GPU
+    packed = _vs_gpu().pack(job, params, inputs or [])
+    name = name or os.path.splitext(os.path.basename(job))[0]
+    name = re.sub(r"[^a-z0-9-]+", "-", name.lower()).strip("-")
+    cells = [
+        md(f"# Video Studio — `{name}` on Colab (manual backup)",
+           "",
+           "Kaggle is the studio's automated GPU provider. Use this notebook only when Kaggle has no GPU free.",
+           "",
+           "1. **Runtime → Change runtime type → T4 GPU**, then **Runtime → Run all**. Stay on the page.",
+           f"2. When it finishes, the browser downloads **`vs-result-{name}.zip`**. Give that file to Claude",
+           "   (upload it to the session or commit it to the branch); Claude runs `vs-colab import`.",
+           "3. The last cell releases the GPU so your Colab allowance is not wasted.",
+           "",
+           "Colab rules: run it yourself in this notebook UI; no SSH, remote desktop or web UIs; one account;",
+           "no deepfakes — lip sync only on faces you own, AI-generated people, or people who agreed in writing.",
+           "Free Colab limits are not published and change; a run can be stopped if you are idle.",
+           "",
+           "Same code as the Kaggle job (packed by `vs-colab build` from `gpu-jobs/`); models are downloaded",
+           "from their official Hugging Face / GitHub sources at pinned revisions."),
+        code("# 1. GPU check + map the Kaggle paths the job uses onto /content\n"
+             "import os, subprocess, pathlib\n"
+             "r = subprocess.run(['nvidia-smi', '-L'], capture_output=True, text=True)\n"
+             "assert r.returncode == 0, 'No GPU: Runtime > Change runtime type > T4 GPU, then Run all again'\n"
+             "print(r.stdout)\n"
+             "for d in ('/content/kaggle/working', '/content/kaggle/temp'):\n"
+             "    pathlib.Path(d).mkdir(parents=True, exist_ok=True)\n"
+             "if not os.path.exists('/kaggle'):\n"
+             "    os.symlink('/content/kaggle', '/kaggle')\n"),
+    ]
+    if ask:
+        cells.append(code(
+            "# 2. upload the inputs that are not embedded: " + ", ".join(ask) + "\n"
+            "import pathlib, shutil\nfrom google.colab import files\n"
+            f"need = {list(ask)!r}\n"
+            "inp = pathlib.Path('/kaggle/working/in'); inp.mkdir(parents=True, exist_ok=True)\n"
+            "missing = [n for n in need if not (inp / n).exists()]\n"
+            "while missing:\n"
+            "    print('Upload:', ', '.join(missing))\n"
+            "    for fn, data in files.upload().items():\n"
+            "        base = pathlib.Path(fn).name\n"
+            "        target = base if base in need else (missing[0] if len(missing) == 1 else None)\n"
+            "        if target:\n"
+            "            (inp / target).write_bytes(data); print('saved', target)\n"
+            "    missing = [n for n in need if not (inp / n).exists()]\n"))
+    cells += [
+        code("# 3. the studio job (generated — do not edit; rebuild with vs-colab build)\n"
+             "JOB = " + repr(packed) + "\n"
+             "open('/content/vs_job.py', 'w').write(JOB)\n"
+             "import subprocess, sys\n"
+             "rc = subprocess.run([sys.executable, '/content/vs_job.py']).returncode\n"
+             "print('job exit code', rc, '(0 = ok; see report.json in the zip either way)')\n"),
+        code("# 4. pack the results and download them\n"
+             "import json, pathlib, shutil\n"
+             "out = pathlib.Path('/kaggle/working/out')\n"
+             "rep = out / 'report.json'\n"
+             "if rep.exists():\n"
+             "    d = json.loads(rep.read_text()); d['provider'] = 'colab'; rep.write_text(json.dumps(d, indent=2))\n"
+             "    print(json.dumps(d, indent=1)[:3000])\n"
+             f"zp = shutil.make_archive('/content/vs-result-{name}', 'zip', out)\n"
+             "from google.colab import files\nfiles.download(zp)\n"),
+        code("# 5. release the GPU (run after the download has started)\n"
+             "from google.colab import runtime\nruntime.unassign()\n"),
+    ]
+    nb = {"nbformat": 4, "nbformat_minor": 5, "cells": cells,
+          "metadata": {"accelerator": "GPU", "colab": {"provenance": [], "gpuType": "T4"},
+                       "kernelspec": {"name": "python3", "display_name": "Python 3"}}}
+    os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
+    json.dump(nb, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    print(f"wrote {out} ({os.path.getsize(out) >> 10} KB)", file=sys.stderr)
+
+
+def do_import(zp, out):
+    os.makedirs(out, exist_ok=True); root = os.path.realpath(out); n = 0
+    with zipfile.ZipFile(zp) as z:
+        for info in z.infolist():
+            dst = os.path.realpath(os.path.join(out, info.filename))
+            if not dst.startswith(root + os.sep) or info.is_dir():
+                continue                                  # skip directories and anything escaping OUT_DIR
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            with z.open(info) as s, open(dst, "wb") as d:
+                d.write(s.read())
+            n += 1
+    rep = os.path.join(out, "report.json")
+    r = json.load(open(rep)) if os.path.exists(rep) else {}
+    print(json.dumps({"out": out, "files": n, "ok": bool(r) and not r.get("error"), "report": r}, indent=2))
+    return 0 if r and not r.get("error") else 1
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    b = sub.add_parser("build"); b.add_argument("job"); b.add_argument("out"); b.add_argument("--params")
+    b.add_argument("--input", action="append"); b.add_argument("--ask", action="append"); b.add_argument("--name")
+    i = sub.add_parser("import"); i.add_argument("zip"); i.add_argument("out")
+    a = ap.parse_args()
+    if a.cmd == "build":
+        build(a.job, a.out, a.params, a.input, a.ask or [], a.name)
+    else:
+        sys.exit(do_import(a.zip, a.out))
+
+
+if __name__ == "__main__":
+    main()

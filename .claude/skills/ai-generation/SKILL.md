@@ -78,8 +78,14 @@ Kaggle needs a **phone-verified** account for GPU + internet. `vs-gpu` reports "
 GPU" and `vs-produce` falls back automatically (keyframe + parallax camera move, Piper voice) and records it
 in `build/route.json`. Tell the person what fell back and why.
 
+Kaggle queue stalls (jobs QUEUED with no GPU for 45 min; `vs-gpu run` then deletes them, exit 6) are a capacity
+problem, not a job bug: retry later (outside US daytime is faster), or offer the **Colab manual backup** —
+`vs-produce DIR --gpu colab` (or `vs-colab build`) writes a notebook; the *person* opens it in Colab (T4),
+presses Run all and gives back `vs-result-NAME.zip`; then `vs-colab import ZIP build/gen/NAME` and rerun.
+Never open, drive or poll Colab yourself. Ready notebooks: `video-studio/colab/` (SDXL, Wan2.1-1.3B, MuseTalk).
+
 ## Never
 
-OpenAI / ChatGPT / Codex / Sora / image_gen, paid APIs, Colab automation (its free tier forbids it), real
+OpenAI / ChatGPT / Codex / Sora / image_gen, paid APIs, Colab automation (its free tier forbids it; manual notebooks via `vs-colab` are fine), real
 people's likeness without consent, non-commercial models (FLUX.1-dev/Kontext-dev, FLUX.2-klein-9B,
 Qwen-Image 2.x, XTTS, Wav2Lip, InsightFace-based ID tools, Habibi Unified/SAU/UAE).

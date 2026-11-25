@@ -1,0 +1,52 @@
+{
+  "gpu_granted": true,
+  "internet_granted": true,
+  "elapsed_s": 132.3,
+  "gpu": {
+    "n": 2,
+    "name": "Tesla T4",
+    "vram_gb": 14.6,
+    "cc": 7.5
+  },
+  "parallel_gpus": 2,
+  "shards": [
+    {
+      "load_s": 34.7,
+      "elapsed_s": 74.2,
+      "lines": [
+        {
+          "id": "calm",
+          "s": 20.5
+        },
+        {
+          "id": "en",
+          "s": 3.3
+        }
+      ],
+      "vram_peak_gb": [
+        3.19
+      ]
+    },
+    {
+      "load_s": 34.6,
+      "elapsed_s": 70.9,
+      "lines": [
+        {
+          "id": "excited",
+          "s": 20.6
+        }
+      ],
+      "vram_peak_gb": [
+        3.15
+      ]
+    }
+  ],
+  "shard_exit_codes": [
+    0,
+    0
+  ],
+  "vram_peak_gb": [
+    0.0,
+    0.0
+  ]
+}

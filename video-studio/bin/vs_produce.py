@@ -1,6 +1,6 @@
 """vs-produce — turn a production.json into a finished, checked MP4. Claude writes the plan; this runs it.
 
-  vs-produce PROJECT_DIR [--stage all|gen|voice|shots|edit|qc] [--gpu auto|kaggle|off] [--force]
+  vs-produce PROJECT_DIR [--stage all|gen|voice|shots|edit|qc] [--gpu auto|kaggle|colab|off] [--force]
 
 PROJECT_DIR/production.json (see video-producer/reference/production-schema.md):
   title, lang (ar|en), format (reel|youtube|square|feed), fps, template,
@@ -11,7 +11,8 @@ PROJECT_DIR/production.json (see video-producer/reference/production-schema.md):
           vo, emotion, dur, pad, transition, transition_dur, onscreen_text, characters}]
 
 Stages (each resumable; outputs in PROJECT_DIR/build, deliverables in PROJECT_DIR/out):
-  gen    ai-image / ai-video shots → open models on Kaggle's free GPU (vs-gpu); if no GPU is available,
+  gen    ai-image / ai-video shots → open models on Kaggle's free GPU (vs-gpu); --gpu colab = manual backup:
+         writes build/colab/NAME.ipynb for the person to run on Colab, then `vs-colab import` + rerun; if no GPU is available,
          ai-video falls back to its keyframe + parallax camera move, and the route is recorded
   voice  narration per shot (Piper CPU · Chatterbox GPU · edge-tts online), durations measured
   shots  each shot conformed to size/fps/duration (stills get camera moves, clips are fit/held)
@@ -83,6 +84,8 @@ class Project:
 def gpu_ready(mode):
     if mode == "off":
         return False, "GPU disabled (--gpu off)"
+    if mode == "colab":
+        return True, "Colab manual backup: notebooks go to build/colab/ (a person runs them; Claude never drives Colab)"
     if not os.environ.get("KAGGLE_USERNAME"):
         return False, "KAGGLE_USERNAME not set"
     stf = os.path.join(VS_HOME, "gpu-status.json")
@@ -111,6 +114,8 @@ def gpu_job(pr, job, items, name, inputs=(), timeout=5400, accel=None):
     params = os.path.join(pr.b, "gen", f"{name}.params.json")
     state = os.path.join(pr.b, "gen", f"{name}.job.json")
     vg = VS_GPU
+    if getattr(pr, "gpu_mode", "") == "colab":
+        return colab_job(pr, job, items, name, inputs, out, params)
     if pr.asynchronous and os.path.exists(state):
         ref = json.load(open(state))["ref"]
         st = subprocess.run([vg, "status", ref], capture_output=True, text=True).stdout.split()
@@ -143,6 +148,33 @@ def gpu_job(pr, job, items, name, inputs=(), timeout=5400, accel=None):
     r = subprocess.run([vg, "run", jobf, out, *common], capture_output=True, text=True)
     sys.stderr.write(r.stderr[-2000:])
     return out if r.returncode == 0 else None
+
+
+def colab_job(pr, job, items, name, inputs, out, params):
+    """Manual backup: results already imported → use them; otherwise write the notebook and stop (Pending)."""
+    rep = os.path.join(out, "report.json")
+    if os.path.exists(rep):
+        r = json.load(open(rep))
+        if r.get("error"):
+            log(f"Colab job {name} failed: {r['error']}"); return None
+        return out
+    os.makedirs(os.path.dirname(params), exist_ok=True)
+    json.dump(items, open(params, "w", encoding="utf-8"), ensure_ascii=False)
+    nb = os.path.join(pr.b, "colab", f"{name}.ipynb")
+    cmd = [sys.executable, os.path.join(BIN, "vs-colab"), "build", os.path.join(VS_REPO, "gpu-jobs", job), nb,
+           "--name", name, "--params", "@" + params]
+    for i in inputs:
+        cmd += ["--input", i]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode:
+        log(f"vs-colab build failed: {r.stderr[-500:]}"); return None
+    log(f"Colab notebook ready: {nb} — open it in Colab (T4), Run all, then "
+        f"`vs-colab import vs-result-{name}.zip {out}` and rerun vs-produce --gpu colab")
+    raise Pending(f"{name}: waiting for the Colab result ({nb})")
+
+
+def provider(pr):
+    return "colab-t4" if getattr(pr, "gpu_mode", "") == "colab" else "kaggle-t4"
 
 
 def job_model(out, default):
@@ -200,7 +232,7 @@ def stage_gen(pr, mode):
                 s[key] = os.path.relpath(dst, pr.d)
                 if s["engine"] == "ai-image":
                     s["engine"] = "still"
-                pr.note(s["id"], image=f"{job_model(out, 'image')}@kaggle-t4")
+                pr.note(s["id"], image=f"{job_model(out, 'image')}@{provider(pr)}")
     if need_img and ok:
         gen_images(need_img, "images")
     if need_vid and ok:
@@ -228,7 +260,7 @@ def stage_gen(pr, mode):
             f = os.path.join(out or "", f"{s['id']}.mp4")
             if out and os.path.exists(f):
                 dst = os.path.join(pr.d, "assets", f"{s['id']}.mp4"); shutil.copy(f, dst)
-                s["source"] = os.path.relpath(dst, pr.d); pr.note(s["id"], video=f"{job_model(out, 'video')}@kaggle-t4")
+                s["source"] = os.path.relpath(dst, pr.d); pr.note(s["id"], video=f"{job_model(out, 'video')}@{provider(pr)}")
     late = [s for s in need_vid if not s.get("source") and not s.get("keyframe")]
     if late and ok:          # text-to-video failed for these: make keyframes so the parallax fallback has a picture
         log("gen: text-to-video failed for", ", ".join(s["id"] for s in late), "- generating keyframes")
@@ -271,7 +303,7 @@ def stage_voice(pr, mode, force):
                     f = os.path.join(out, f"{i}.wav")
                     if os.path.exists(f):
                         run(["ffmpeg", "-v", "error", "-y", "-i", f, "-ar", "48000", "-ac", "1", os.path.join(pr.b, "vo", f"{i}.wav")])
-                        pr.note(i, voice="chatterbox@kaggle")
+                        pr.note(i, voice=f"chatterbox@{provider(pr)}")
                 todo = [(i, t) for i, t in todo if not os.path.exists(os.path.join(pr.b, "vo", f"{i}.wav"))]
         if todo:
             log(f"voice: Chatterbox unavailable ({why if not ok else 'job failed'}) → Piper")
@@ -496,11 +528,11 @@ def stage_qc(pr):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("project"); ap.add_argument("--stage", default="all", choices=["all", "gen", "voice", "shots", "edit", "qc"])
-    ap.add_argument("--gpu", default="auto", choices=["auto", "kaggle", "off"]); ap.add_argument("--force", action="store_true")
+    ap.add_argument("--gpu", default="auto", choices=["auto", "kaggle", "colab", "off"]); ap.add_argument("--force", action="store_true")
     ap.add_argument("--async", dest="asynchronous", action="store_true",
                     help="submit GPU jobs and return; rerun later to collect them (no waiting in this process)")
     a = ap.parse_args()
-    pr = Project(a.project); pr.asynchronous = a.asynchronous; t0 = time.time()
+    pr = Project(a.project); pr.asynchronous = a.asynchronous; pr.gpu_mode = a.gpu; t0 = time.time()
     st = a.stage
     pending = []
     if st in ("all", "gen"):
